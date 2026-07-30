@@ -1892,7 +1892,7 @@ function refresh() {
   const pc = document.getElementById("poolCount");
   pc.innerHTML = "<b>" + n + "</b> film" + (n === 1 ? "" : "s") + " match your mood"
     + (state.hidden.size ? " · " + state.hidden.size + " hidden tonight" : "")
-    + (hiddenByMeta ? ' <span class="warn">· ' + hiddenByMeta + " imported film" + (hiddenByMeta === 1 ? "" : "s") + " skipped (no details yet)</span>" : "");
+    + (hiddenByMeta ? ' <span class="warn">· ' + hiddenByMeta + " film" + (hiddenByMeta === 1 ? "" : "s") + " set aside — missing the info one of your filters checks</span>" : "");
   pc.classList.toggle("zero", n === 0);
   document.getElementById("pickBtn").disabled = n === 0;
   browseLimit = 24;
