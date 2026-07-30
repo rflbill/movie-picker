@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Leo Movie Picker",
+  "schemaVersion": 1,
+  "description": "Movie-night randomizer, v0.3 tier-2: Leo's 249-film watchlist + friends' lists (CSV/paste) + the whole TMDB database (~1M films) with posters, overviews and streaming availability by country (JustWatch data via TMDB). Filter by vibe/genre/decade/runtime/rating, roll a random pick.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What should I watch tonight?</title>
+<style>
+  :root {
+    --bg: #0a0d15;
+    --bg-2: #10141f;
+    --panel: #141a28;
+    --panel-2: #1b2333;
+    --line: #263048;
+    --blue: #5b9dff;
+    --blue-dim: #3a6cc0;
+    --blue-deep: #2b4f8f;
+    --pink: #ee6fa8;
+    --pink-dim: #a04b74;
+    --cream: #e9edf6;
+    --muted: #8b95ab;
+    --muted-2: #5d6579;
+    --red: #d06258;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 70% 45% at 50% -8%, rgba(91,157,255,0.10), transparent),
+      radial-gradient(ellipse 40% 30% at 88% 4%, rgba(238,111,168,0.05), transparent);
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header { text-align: center; margin-bottom: 24px; }
+  .marquee {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(28px, 5vw, 44px);
+    letter-spacing: 0.5px;
+  }
+  .marquee .blue { color: var(--blue); }
+  .tagline { color: var(--muted); margin-top: 6px; font-size: 14px; }
+  .tagline b { color: var(--blue); font-weight: 600; }
+  .tagline .heart { color: var(--pink); }
+  .tagline.steps { display: flex; align-items: center; justify-content: center; gap: 9px; flex-wrap: wrap; }
+  .steps .s1 { color: #9c4a70; }
+  .steps .s2 { color: #c75d92; }
+  .steps .s3 { color: var(--pink); text-shadow: 0 0 18px rgba(238,111,168,.45); font-weight: 600; }
+  .steps .ff { display: inline-flex; opacity: .55; }
+  .steps .ff svg { display: block; }
+
+  /* ---------- panels ---------- */
+  .panel {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 18px 14px;
+    margin-bottom: 16px;
+  }
+  .frow { margin-bottom: 14px; }
+  .flabel {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 7px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .flabel .hint { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted-2); font-size: 11px; }
+  .flabel .pinkdot { color: var(--pink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+    transition: all .12s ease; user-select: none; line-height: 1.35;
+  }
+  .chip:hover { border-color: var(--blue-dim); color: var(--cream); }
+  .chip.on { background: var(--blue); border-color: var(--blue); color: #0a1224; font-weight: 600; }
+  .chip .n { opacity: .55; font-size: 11px; margin-left: 3px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+
+  #runtime { accent-color: var(--blue); }
+  #rating { accent-color: var(--pink); }
+  input[type="range"] { width: 100%; cursor: pointer; }
+  .rangeval { color: var(--blue); font-weight: 600; font-size: 13px; }
+  .rangeval.pink { color: var(--pink); }
+
+  input[type="text"], textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--cream);
+    border-radius: 8px; padding: 8px 12px; font-size: 13.5px; outline: none;
+    font-family: inherit;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--blue-dim); }
+  input[type="text"]::placeholder, textarea::placeholder { color: var(--muted-2); }
+
+  .panel-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; flex-wrap: wrap;
+  }
+  .poolcount { font-size: 13.5px; color: var(--muted); }
+  .poolcount b { color: var(--cream); font-size: 16px; }
+  .poolcount.zero b { color: var(--red); }
+  .poolcount .warn { color: var(--pink); font-size: 12px; }
+  .linkbtn {
+    background: none; border: none; color: var(--muted); font-size: 12.5px; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .linkbtn:hover { color: var(--blue); }
+
+  /* ---------- sources ---------- */
+  .src-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .src {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: var(--panel-2);
+    border-radius: 999px; padding: 6px 8px 6px 14px; font-size: 13px; color: var(--muted);
+    cursor: pointer; transition: all .12s;
+  }
+  .src.on { border-color: var(--blue-dim); color: var(--cream); background: rgba(91,157,255,.10); }
+  .src .cnt { color: var(--muted-2); font-size: 11.5px; }
+  .src.on .cnt { color: var(--blue); }
+  .src .x {
+    width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--line); color: var(--muted); font-size: 11px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .src .x:hover { background: var(--red); color: #fff; }
+  .addbtn {
+    border: 1px dashed var(--blue-deep); background: none; color: var(--blue);
+    border-radius: 999px; padding: 6px 14px; font-size: 12.5px; cursor: pointer; transition: all .12s;
+  }
+  .addbtn:hover { background: rgba(91,157,255,.08); }
+  .addbtn.pink { border-color: var(--pink-dim); color: var(--pink); }
+  .addbtn.pink:hover { background: rgba(238,111,168,.08); }
+
+  .mode { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .mode button {
+    border: none; background: none; color: var(--muted); font-size: 12px; padding: 5px 12px; cursor: pointer;
+  }
+  .mode button.on { background: var(--pink); color: #24101b; font-weight: 600; }
+
+  .pastebox { margin-top: 12px; display: none; }
+  .pastebox.show { display: block; }
+  .pastebox textarea { min-height: 90px; resize: vertical; }
+  .pastebox .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+  .pastebox input[type="text"] { max-width: 220px; }
+  .importmsg { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .importmsg .ok { color: var(--blue); }
+  .importmsg .pk { color: var(--pink); }
+
+  /* ---------- pick area ---------- */
+  .pickzone { text-align: center; margin: 28px 0 24px; }
+  .pickrow { display: flex; align-items: center; justify-content: center; }
+  .filmstrip { flex: none; z-index: 0; opacity: .9; }
+  .filmstrip.l { margin-right: -30px; -webkit-mask-image: linear-gradient(to right, transparent, #000 45%); mask-image: linear-gradient(to right, transparent, #000 45%); }
+  .filmstrip.r { margin-left: -30px; -webkit-mask-image: linear-gradient(to left, transparent, #000 45%); mask-image: linear-gradient(to left, transparent, #000 45%); }
+  @media (max-width: 640px) { .filmstrip { display: none; } }
+  .bigbtn {
+    font-family: Georgia, serif;
+    background: linear-gradient(180deg, #6ea9ff, #3f74d8);
+    color: #0a1430; border: 2px solid rgba(238,111,168,.55); border-radius: 999px;
+    font-size: 19px; font-weight: 700; letter-spacing: .3px;
+    padding: 15px 42px; cursor: pointer;
+    position: relative; z-index: 1;
+    box-shadow: 0 6px 26px rgba(91,157,255,.30), 0 3px 22px rgba(238,111,168,.22), inset 0 1px 0 rgba(255,255,255,.35);
+    transition: transform .1s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .bigbtn .die { font-size: 24px; vertical-align: -3px; line-height: 1; }
+  .bigbtn:hover {
+    transform: translateY(-1px); border-color: rgba(238,111,168,.85);
+    box-shadow: 0 8px 34px rgba(91,157,255,.42), 0 4px 30px rgba(238,111,168,.38), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .bigbtn:active { transform: translateY(1px); }
+  .bigbtn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+  .result {
+    max-width: 640px; margin: 26px auto 0;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 28px 30px; text-align: center; display: none;
+    position: relative; overflow: hidden;
+  }
+  .result.show { display: block; animation: pop .3s ease; }
+  @keyframes pop { from { transform: scale(.96); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+  .result::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--blue), var(--pink), transparent);
+  }
+  .r-vibe {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--pink); border: 1px solid var(--pink-dim); border-radius: 999px; padding: 4px 12px; margin-bottom: 14px;
+  }
+  .r-title { font-family: Georgia, serif; font-size: clamp(24px, 4vw, 34px); line-height: 1.15; margin-bottom: 6px; }
+  .r-title.rolling { color: var(--muted); }
+  .r-sub { color: var(--muted); font-size: 14.5px; margin-bottom: 6px; }
+  .r-srcs { margin-bottom: 14px; }
+  .r-srcs .tag {
+    display: inline-block; font-size: 10.5px; color: var(--pink); border: 1px solid rgba(238,111,168,.35);
+    border-radius: 999px; padding: 2px 9px; margin: 0 3px;
+  }
+  .r-meta { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; margin-bottom: 16px; }
+  .r-meta .m { font-size: 13px; color: var(--muted); }
+  .r-meta .m b { display: block; color: var(--cream); font-size: 15px; margin-bottom: 1px; }
+  .r-meta .m b.star { color: var(--blue); }
+  .r-genres { color: var(--muted-2); font-size: 13px; margin-bottom: 18px; }
+  .r-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .btn2 {
+    background: var(--panel-2); color: var(--cream); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 18px; font-size: 13px; cursor: pointer; text-decoration: none;
+    display: inline-block; transition: border-color .12s;
+  }
+  .btn2:hover { border-color: var(--blue-dim); }
+  .btn2.accent { color: var(--blue); }
+
+  .history { max-width: 640px; margin: 14px auto 0; text-align: center; font-size: 12.5px; color: var(--muted-2); }
+  .history span { color: var(--muted); }
+
+  /* ---------- browse ---------- */
+  .browse-head { display: flex; align-items: baseline; gap: 10px; margin: 32px 0 12px; }
+  .browse-head h2 { font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+  .browse-head .cnt { color: var(--muted-2); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .card {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: border-color .12s;
+  }
+  .card:hover { border-color: var(--blue-dim); }
+  .c-title { font-size: 14.5px; font-weight: 600; margin-bottom: 3px; }
+  .c-title .yr { color: var(--muted-2); font-weight: 400; }
+  .c-sub { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .c-foot { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted-2); gap: 8px; }
+  .c-foot .rt { color: var(--blue); font-weight: 600; white-space: nowrap; }
+  .c-nometa { color: var(--muted-2); font-style: italic; }
+  .empty { text-align: center; color: var(--muted-2); padding: 30px 0; font-size: 14px; grid-column: 1/-1; }
+  .empty .fix { color: var(--pink); }
+  .showmore { grid-column: 1/-1; text-align: center; }
+
+  footer { text-align: center; margin-top: 46px; color: var(--muted-2); font-size: 11.5px; line-height: 1.7; }
+  footer .pk { color: var(--pink-dim); }
+  footer .attrib { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  footer .attrib img { height: 14px; display: block; }
+
+  /* ---------- database mode ---------- */
+  .modebar { text-align: center; margin-bottom: 16px; }
+  .modegrid { display: inline-grid; grid-template-columns: auto auto; row-gap: 6px; }
+  .modegrid button {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    font-size: 13.5px; padding: 8px 22px; cursor: pointer; transition: all .12s; font-family: inherit;
+  }
+  .modegrid button:hover { color: var(--cream); }
+  .modegrid #modeDb { border-radius: 999px 0 0 999px; border-right: none; }
+  .modegrid #modeLists { border-radius: 0 999px 999px 0; }
+  .modegrid button.on { background: var(--blue); border-color: var(--blue); color: #0a1224; font-weight: 600; }
+  .modegrid .mhint { font-size: 11px; color: var(--muted-2); text-align: center; padding: 0 8px; }
+
+  /* vibes select in pink (mood accent), other chips stay blue */
+  #vibeChips .chip.on { background: var(--pink); border-color: var(--pink); color: #24101b; }
+  #vibeChips .chip:hover { border-color: var(--pink-dim); }
+  .chip .ve { font-size: 12px; }
+  select {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--cream);
+    border-radius: 8px; padding: 8px 10px; font-size: 13.5px; outline: none; font-family: inherit; cursor: pointer;
+  }
+  select:focus { border-color: var(--blue-dim); }
+  .dbwhere { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .r-poster {
+    display: block; margin: 0 auto 14px; height: 220px; max-width: 160px; border-radius: 10px;
+    border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0,0,0,.45); object-fit: cover;
+  }
+  .r-overview {
+    color: var(--muted); font-size: 13px; line-height: 1.55; max-width: 520px;
+    margin: 0 auto 14px; display: none;
+  }
+  .r-overview.show { display: block; }
+  .r-where { margin-bottom: 16px; min-height: 0; }
+  .r-where .wgroup { display: inline-flex; align-items: center; gap: 6px; margin: 4px 10px; }
+  .r-where .wlabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted-2); }
+  .r-where img { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line); }
+  .r-where .jw { display: block; margin-top: 6px; font-size: 11px; color: var(--muted-2); }
+  .r-where .jw a { color: var(--muted); }
+  .r-scores { font-size: 12.5px; color: var(--muted); margin: -8px 0 14px; }
+  .r-scores b { color: var(--cream); font-weight: 600; }
+  .r-scores .bl { color: var(--blue); font-weight: 600; }
+  .pcard {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    cursor: pointer; transition: border-color .12s;
+  }
+  .pcard:hover { border-color: var(--blue-dim); }
+  .pcard img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; background: var(--panel-2); }
+  .pcard .pc-body { padding: 9px 11px 11px; }
+  .pcard .pc-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
+  .pcard .pc-sub { font-size: 11.5px; color: var(--muted-2); margin-top: 3px; display: flex; justify-content: space-between; gap: 6px; }
+  .pcard .pc-sub .rt { color: var(--blue); font-weight: 600; }
+  .grid.posters { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="marquee">🎬 What should <span class="blue">I</span> watch tonight?</div>
+    <div class="tagline steps">
+      <span class="s1">set the mood</span>
+      <span class="ff"><svg width="15" height="10" viewBox="0 0 15 10" fill="#a04b74" xmlns="http://www.w3.org/2000/svg"><path d="M0 0.8 L6.4 5 L0 9.2 Z"/><path d="M7.4 0.8 L13.8 5 L7.4 9.2 Z"/></svg></span>
+      <span class="s2">hit the button</span>
+      <span class="ff"><svg width="15" height="10" viewBox="0 0 15 10" fill="#c75d92" xmlns="http://www.w3.org/2000/svg"><path d="M0 0.8 L6.4 5 L0 9.2 Z"/><path d="M7.4 0.8 L13.8 5 L7.4 9.2 Z"/></svg></span>
+      <span class="s3">movie night solved!</span>
+    </div>
+  </header>
+
+  <div class="modebar">
+    <div class="modegrid">
+      <button id="modeDb">🌍 Whole database</button>
+      <button id="modeLists" class="on">🎬 Our lists</button>
+      <span class="mhint">every film out there</span>
+      <span class="mhint">the lists you bring</span>
+    </div>
+  </div>
+
+  <div class="panel" id="srcPanel">
+    <div class="flabel">Whose movie night? <span class="hint">toggle lists on/off · add friends' lists to mix</span></div>
+    <div class="src-chips" id="srcChips"></div>
+    <div class="pastebox" id="pastebox">
+      <textarea id="pasteArea" placeholder="One film per line — e.g.&#10;Snatch (2000)&#10;Heat, 1995&#10;Paddington 2"></textarea>
+      <div class="row">
+        <input type="text" id="pasteName" placeholder="Whose list is this? e.g. Ana">
+        <button class="addbtn" id="pasteAdd">Add this list</button>
+        <button class="linkbtn" id="pasteCancel">cancel</button>
+      </div>
+    </div>
+    <input type="file" id="csvFile" accept=".csv,.txt" multiple style="display:none">
+    <div class="importmsg" id="importMsg"></div>
+  </div>
+
+  <div class="panel">
+    <div class="frow" id="vibeRow">
+      <div class="flabel">Tonight's vibe <span class="hint" id="vibeHint">pick one or more</span></div>
+      <div class="chips" id="vibeChips"></div>
+    </div>
+    <div class="frow">
+      <div class="flabel">Genres</div>
+      <div class="chips" id="genreChips"></div>
+    </div>
+    <div class="frow">
+      <div class="flabel">Decade</div>
+      <div class="chips" id="decadeChips"></div>
+    </div>
+    <div class="cols frow">
+      <div>
+        <div class="flabel">Max runtime &nbsp;<span class="rangeval" id="runtimeVal">any</span></div>
+        <input type="range" id="runtime" min="80" max="360" step="5" value="360">
+      </div>
+      <div>
+        <div class="flabel"><span id="ratingLabel">Min Letterboxd rating</span> &nbsp;<span class="rangeval pink" id="ratingVal">any</span></div>
+        <input type="range" id="rating" min="3.0" max="4.6" step="0.1" value="3.0">
+      </div>
+      <div>
+        <div class="flabel" id="searchLabel">Title, director or country</div>
+        <input type="text" id="search" placeholder="e.g. Kurosawa, Brazil, Wilder…" list="peopleList">
+        <datalist id="peopleList"></datalist>
+      </div>
+    </div>
+    <div class="frow" id="dbRow">
+      <div class="flabel">Where to watch <span class="hint">streaming info shown on each pick · data by JustWatch via TMDB</span></div>
+      <div class="dbwhere">
+        <select id="country"></select>
+        <button class="chip" id="streamOnly" style="display:none">📺 only films streaming in my country</button>
+      </div>
+    </div>
+    <div class="panel-foot">
+      <div class="poolcount" id="poolCount"></div>
+      <button class="linkbtn" id="clearBtn">clear all filters</button>
+    </div>
+  </div>
+
+  <div class="pickzone">
+    <div class="pickrow">
+      <svg class="filmstrip l" width="170" height="38" viewBox="0 0 170 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="2" width="170" height="34" rx="4" fill="#141a28" stroke="#263048"/>
+        <g fill="#0a0d15">
+          <rect x="8" y="6" width="8" height="5" rx="1.5"/><rect x="22" y="6" width="8" height="5" rx="1.5"/><rect x="36" y="6" width="8" height="5" rx="1.5"/><rect x="50" y="6" width="8" height="5" rx="1.5"/><rect x="64" y="6" width="8" height="5" rx="1.5"/><rect x="78" y="6" width="8" height="5" rx="1.5"/><rect x="92" y="6" width="8" height="5" rx="1.5"/><rect x="106" y="6" width="8" height="5" rx="1.5"/><rect x="120" y="6" width="8" height="5" rx="1.5"/><rect x="134" y="6" width="8" height="5" rx="1.5"/><rect x="148" y="6" width="8" height="5" rx="1.5"/>
+          <rect x="8" y="27" width="8" height="5" rx="1.5"/><rect x="22" y="27" width="8" height="5" rx="1.5"/><rect x="36" y="27" width="8" height="5" rx="1.5"/><rect x="50" y="27" width="8" height="5" rx="1.5"/><rect x="64" y="27" width="8" height="5" rx="1.5"/><rect x="78" y="27" width="8" height="5" rx="1.5"/><rect x="92" y="27" width="8" height="5" rx="1.5"/><rect x="106" y="27" width="8" height="5" rx="1.5"/><rect x="120" y="27" width="8" height="5" rx="1.5"/><rect x="134" y="27" width="8" height="5" rx="1.5"/><rect x="148" y="27" width="8" height="5" rx="1.5"/>
+        </g>
+        <g fill="rgba(91,157,255,.07)" stroke="rgba(38,48,72,.9)">
+          <rect x="7" y="14" width="36" height="10" rx="1"/><rect x="49" y="14" width="36" height="10" rx="1"/><rect x="91" y="14" width="36" height="10" rx="1"/><rect x="133" y="14" width="30" height="10" rx="1"/>
+        </g>
+      </svg>
+      <button class="bigbtn" id="pickBtn"><span class="die">🎲</span>&nbsp; Pick my movie</button>
+      <svg class="filmstrip r" width="170" height="38" viewBox="0 0 170 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="2" width="170" height="34" rx="4" fill="#141a28" stroke="#263048"/>
+        <g fill="#0a0d15">
+          <rect x="14" y="6" width="8" height="5" rx="1.5"/><rect x="28" y="6" width="8" height="5" rx="1.5"/><rect x="42" y="6" width="8" height="5" rx="1.5"/><rect x="56" y="6" width="8" height="5" rx="1.5"/><rect x="70" y="6" width="8" height="5" rx="1.5"/><rect x="84" y="6" width="8" height="5" rx="1.5"/><rect x="98" y="6" width="8" height="5" rx="1.5"/><rect x="112" y="6" width="8" height="5" rx="1.5"/><rect x="126" y="6" width="8" height="5" rx="1.5"/><rect x="140" y="6" width="8" height="5" rx="1.5"/><rect x="154" y="6" width="8" height="5" rx="1.5"/>
+          <rect x="14" y="27" width="8" height="5" rx="1.5"/><rect x="28" y="27" width="8" height="5" rx="1.5"/><rect x="42" y="27" width="8" height="5" rx="1.5"/><rect x="56" y="27" width="8" height="5" rx="1.5"/><rect x="70" y="27" width="8" height="5" rx="1.5"/><rect x="84" y="27" width="8" height="5" rx="1.5"/><rect x="98" y="27" width="8" height="5" rx="1.5"/><rect x="112" y="27" width="8" height="5" rx="1.5"/><rect x="126" y="27" width="8" height="5" rx="1.5"/><rect x="140" y="27" width="8" height="5" rx="1.5"/><rect x="154" y="27" width="8" height="5" rx="1.5"/>
+        </g>
+        <g fill="rgba(91,157,255,.07)" stroke="rgba(38,48,72,.9)">
+          <rect x="7" y="14" width="30" height="10" rx="1"/><rect x="43" y="14" width="36" height="10" rx="1"/><rect x="85" y="14" width="36" height="10" rx="1"/><rect x="127" y="14" width="36" height="10" rx="1"/>
+        </g>
+      </svg>
+    </div>
+    <div class="result" id="result">
+      <div class="r-vibe" id="rVibe"></div>
+      <img class="r-poster" id="rPoster" alt="" style="display:none">
+      <div class="r-title" id="rTitle"></div>
+      <div class="r-sub" id="rSub"></div>
+      <div class="r-srcs" id="rSrcs"></div>
+      <div class="r-overview" id="rOverview"></div>
+      <div class="r-where" id="rWhere"></div>
+      <div class="r-meta" id="rMeta">
+        <div class="m"><b id="rRating" class="star"></b><span id="rRatingSrc">Letterboxd</span></div>
+        <div class="m"><b id="rRuntime"></b>runtime</div>
+        <div class="m"><b id="rCountry"></b>country</div>
+      </div>
+      <div class="r-scores" id="rScores"></div>
+      <div class="r-genres" id="rGenres"></div>
+      <div class="r-actions">
+        <button class="btn2 accent" id="rerollBtn">🎲 Roll again</button>
+        <button class="btn2" id="notTonightBtn">Not tonight (hide it)</button>
+        <a class="btn2" id="lbLink" href="#" target="_blank" rel="noopener">Open on Letterboxd ↗</a>
+      </div>
+      <div style="margin-top:10px; font-size:11px;">
+        <a id="searchFallback" href="#" target="_blank" rel="noopener" style="color:var(--muted-2); text-decoration:underline; text-underline-offset:3px;">wrong film? search it instead</a>
+      </div>
+    </div>
+    <div class="history" id="history"></div>
+  </div>
+
+  <div class="browse-head">
+    <h2>Matching films</h2>
+    <span class="cnt" id="browseCnt"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
+    <span class="pk">v0.6 tier-2</span> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <div class="attrib">
+      <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
+      <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+    </div>
+    <div class="attrib"><span>Streaming availability data powered by <a href="https://www.justwatch.com" target="_blank" rel="noopener" style="color:var(--muted)">JustWatch</a>.</span></div>
+  </footer>
+</div>
+
+<script>
+const RAW = `Hokum	2026	Damian McCarthy	USA	107	Horror	3.31	Dark & Disturbing
+The Wailing	2016	Na Hong-jin	South Korea	156	Horror, Mystery	3.98	Dark & Disturbing
+mid90s	2018	Jonah Hill	USA	86	Drama, Comedy	3.82	Coming of Age
+The Handmaiden	2016	Park Chan-wook	South Korea	145	Thriller, Romance, Drama	4.39	Edge of Your Seat
+The Florida Project	2017	Sean Baker	USA	112	Drama	4.10	Heavy & Moving
+The Act of Killing	2012	Joshua Oppenheimer	Denmark	117	Documentary, History	4.42	Real Stories (Docs)
+Frances Ha	2012	Noah Baumbach	USA	86	Comedy, Drama	4.03	Feel-Good & Fun
+Onibaba	1964	Kaneto Shindo	Japan	105	Horror	4.07	Dark & Disturbing
+Juror #2	2024	Clint Eastwood	USA	114	Drama, Thriller	3.38	Edge of Your Seat
+Planet Earth	2006	Alastair Fothergill	UK	538	Documentary	4.63	Real Stories (Docs)
+March of the Penguins	2005	Luc Jacquet	France	85	Family, Documentary	3.61	Real Stories (Docs)
+Tiger King	2020	Eric Goode, Rebecca Chaiklin	USA	354	Crime, Documentary	3.51	Real Stories (Docs)
+Andrei Rublev	1966	Andrei Tarkovsky	USSR	183	History, Drama	4.44	Slow & Soulful
+Tangerine	2015	Sean Baker	USA	87	Comedy, Drama	3.87	Feel-Good & Fun
+Buena Vista Social Club	1999	Wim Wenders	Germany	105	Music, Documentary	3.96	Real Stories (Docs)
+A Brighter Summer Day	1991	Edward Yang	Taiwan	237	Crime, Drama, Romance	4.49	Slow & Soulful
+The Red Light Bandit	1968	Rogerio Sganzerla	Brazil	92	Thriller, Crime	3.88	Mind-Benders & Oddities
+Rio, 100 Degrees F°	1955	Nelson Pereira dos Santos	Brazil	100	Drama	4.00	Heavy & Moving
+Rio, Northern Zone	1957	Nelson Pereira dos Santos	Brazil	90	Music, Drama	4.21	Heavy & Moving
+Black God, White Devil	1964	Glauber Rocha	Brazil	120	Drama, Western, Adventure	3.77	Mind-Benders & Oddities
+Twenty Years Later	1984	Eduardo Coutinho	Brazil	119	History, Documentary	4.33	Real Stories (Docs)
+A Woman Under the Influence	1974	John Cassavetes	USA	155	Romance, Drama	4.40	Heavy & Moving
+Millennium Mambo	2001	Hou Hsiao-hsien	Taiwan	106	Drama	3.82	Slow & Soulful
+Comrades, Almost a Love Story	1996	Peter Chan	Hong Kong	118	Drama, Romance	4.20	Love & Longing
+Fanny and Alexander	1982	Ingmar Bergman	Sweden	188	Mystery, Fantasy, Drama	4.42	Big & Epic
+The Salt of the Earth	2014	Juliano Ribeiro Salgado, Wim Wenders	France	110	Documentary	4.25	Real Stories (Docs)
+Pina	2011	Wim Wenders	Germany	106	Documentary	3.95	Real Stories (Docs)
+The Party	1968	Blake Edwards	USA	99	Comedy	3.58	Feel-Good & Fun
+From Dusk Till Dawn	1996	Robert Rodriguez	USA	108	Horror, Crime, Action	3.52	Dark & Disturbing
+F1	2025	Joseph Kosinski	USA	156	Action, Drama	3.65	Edge of Your Seat
+Let the Right One In	2008	Tomas Alfredson	Sweden	114	Horror, Drama	4.03	Dark & Disturbing
+The Hurt Locker	2008	Kathryn Bigelow	USA	131	Drama, Thriller, War	3.75	Edge of Your Seat
+TÁR	2022	Todd Field	USA	158	Drama, Music	3.93	Heavy & Moving
+Best in Show	2000	Christopher Guest	USA	90	Comedy	3.84	Feel-Good & Fun
+A Serious Man	2009	Joel Coen, Ethan Coen	USA	106	Comedy, Drama	3.86	Mind-Benders & Oddities
+A Separation	2011	Asghar Farhadi	Iran	123	Drama	4.38	Heavy & Moving
+A Prophet	2009	Jacques Audiard	France	155	Crime, Drama	4.19	Edge of Your Seat
+Yi Yi	2000	Edward Yang	Taiwan	174	Drama	4.53	Slow & Soulful
+Phantom Thread	2017	Paul Thomas Anderson	USA	130	Drama, Romance	4.17	Love & Longing
+8½	1963	Federico Fellini	Italy	139	Drama, Fantasy	4.26	Mind-Benders & Oddities
+Cure	1997	Kiyoshi Kurosawa	Japan	111	Crime, Mystery, Thriller, Horror	4.28	Dark & Disturbing
+The Battle of Algiers	1966	Gillo Pontecorvo	Italy	122	History, Drama, War	4.46	Edge of Your Seat
+Call Me by Your Name	2017	Luca Guadagnino	USA	132	Romance, Drama	3.85	Love & Longing
+The Favourite	2018	Yorgos Lanthimos	UK	120	Drama, Comedy, History	4.01	Feel-Good & Fun
+Sound of Metal	2019	Darius Marder	USA	120	Drama, Music	4.21	Heavy & Moving
+Killers of the Flower Moon	2023	Martin Scorsese	USA	206	Crime, Drama, History	4.02	Big & Epic
+The Raid	2011	Gareth Evans	Indonesia	101	Action, Crime, Thriller	4.04	Edge of Your Seat
+Close-Up	1990	Abbas Kiarostami	Iran	98	Crime, Drama	4.41	Slow & Soulful
+The Fly	1986	David Cronenberg	USA	96	Horror, Science Fiction, Thriller	3.99	Dark & Disturbing
+Videodrome	1983	David Cronenberg	Canada	89	Mystery, Science Fiction, Horror	3.87	Dark & Disturbing
+Bohemian Rhapsody	2018	Bryan Singer	USA	135	Music, Drama	3.53	Feel-Good & Fun
+Control	2007	Anton Corbijn	UK	122	Drama	3.93	Heavy & Moving
+Breakfast at Tiffany's	1961	Blake Edwards	USA	115	Comedy, Drama, Romance	3.80	Love & Longing
+Happy Hour	2015	Ryusuke Hamaguchi	Japan	317	Drama	4.24	Slow & Soulful
+A Star Is Born	2018	Bradley Cooper	USA	136	Drama, Romance, Music	3.64	Love & Longing
+Room	2015	Lenny Abrahamson	Canada	118	Drama, Thriller	3.97	Heavy & Moving
+Rush	2013	Ron Howard	UK	123	Drama, Action	3.88	Edge of Your Seat
+Wild Strawberries	1957	Ingmar Bergman	Sweden	91	Drama, Romance	4.33	Slow & Soulful
+On the Waterfront	1954	Elia Kazan	USA	108	Crime, Drama	4.17	Heavy & Moving
+Tokyo Story	1953	Yasujirō Ozu	Japan	136	Drama	4.43	Slow & Soulful
+The Deer Hunter	1978	Michael Cimino	USA	183	Drama, War	4.22	Heavy & Moving
+Memories of Murder	2003	Bong Joon Ho	South Korea	131	Crime, Drama, Thriller	4.42	Edge of Your Seat
+Barry Lyndon	1975	Stanley Kubrick	UK	185	Drama, Romance, War	4.41	Big & Epic
+Rashomon	1950	Akira Kurosawa	Japan	88	Crime, Drama, Mystery	4.20	Mind-Benders & Oddities
+The Great Escape	1963	John Sturges	USA	173	War, Adventure	4.17	Edge of Your Seat
+Sanjuro	1962	Akira Kurosawa	Japan	96	Action, Drama, Thriller	4.14	Edge of Your Seat
+The Treasure of the Sierra Madre	1948	John Huston	USA	126	Adventure, Drama, Western	4.30	Edge of Your Seat
+Unforgiven	1992	Clint Eastwood	USA	131	Western, Drama	4.20	Big & Epic
+Ran	1985	Akira Kurosawa	Japan	162	Action, Drama, War	4.51	Big & Epic
+Casino	1995	Martin Scorsese	USA	179	Crime, Drama	4.21	Edge of Your Seat
+All About Eve	1950	Joseph L. Mankiewicz	USA	138	Drama	4.36	Feel-Good & Fun
+Some Like It Hot	1959	Billy Wilder	USA	123	Comedy, Crime, Music	4.28	Feel-Good & Fun
+For a Few Dollars More	1965	Sergio Leone	Italy	132	Western	4.24	Big & Epic
+Judgment at Nuremberg	1961	Stanley Kramer	USA	191	Drama, War, History	4.36	Heavy & Moving
+Die Hard	1988	John McTiernan	USA	132	Action, Thriller	4.05	Edge of Your Seat
+Metropolis	1927	Fritz Lang	Germany	148	Drama, Science Fiction	4.24	Big & Epic
+Vertigo	1958	Alfred Hitchcock	USA	128	Mystery, Romance, Thriller	4.22	Edge of Your Seat
+Heat	1995	Michael Mann	USA	170	Action, Crime, Thriller	4.31	Edge of Your Seat
+Double Indemnity	1944	Billy Wilder	USA	107	Crime, Thriller	4.25	Edge of Your Seat
+Lawrence of Arabia	1962	David Lean	UK	228	Adventure, Drama, History	4.40	Big & Epic
+North by Northwest	1959	Alfred Hitchcock	USA	137	Mystery, Thriller	4.19	Edge of Your Seat
+The Apartment	1960	Billy Wilder	USA	126	Comedy, Drama, Romance	4.43	Love & Longing
+Ikiru	1952	Akira Kurosawa	Japan	143	Drama	4.51	Heavy & Moving
+Once Upon a Time in America	1984	Sergio Leone	USA	229	Crime, Drama	4.22	Big & Epic
+Das Boot	1981	Wolfgang Petersen	Germany	150	Drama, War, History	4.33	Edge of Your Seat
+Amadeus	1984	Miloš Forman	USA	160	Drama, History, Music	4.36	Big & Epic
+Paths of Glory	1957	Stanley Kubrick	USA	88	War, Drama	4.45	Heavy & Moving
+Witness for the Prosecution	1957	Billy Wilder	USA	116	Crime, Mystery, Drama	4.41	Edge of Your Seat
+Sunset Boulevard	1950	Billy Wilder	USA	110	Drama	4.44	Mind-Benders & Oddities
+The Lives of Others	2006	Florian Henckel von Donnersmarck	Germany	137	Drama, Thriller	4.29	Heavy & Moving
+Rear Window	1954	Alfred Hitchcock	USA	113	Thriller, Mystery, Drama	4.36	Edge of Your Seat
+Once Upon a Time in the West	1968	Sergio Leone	Italy	166	Drama, Western	4.39	Big & Epic
+Cinema Paradiso	1988	Giuseppe Tornatore	Italy	155	Drama, Romance	4.51	Heavy & Moving
+Spider-Man: Across the Spider-Verse	2023	Joaquim Dos Santos, Kemp Powers, Justin K. Thompson	USA	140	Animation, Science Fiction, Adventure, Action	4.40	Edge of Your Seat
+The Thin Red Line	1998	Terrence Malick	USA	171	History, War, Drama	4.09	Slow & Soulful
+Gattaca	1997	Andrew Niccol	USA	107	Drama, Science Fiction	3.81	Mind-Benders & Oddities
+Dazed and Confused	1993	Richard Linklater	USA	103	Comedy, Drama	3.90	Coming of Age
+The Human Condition III: A Soldier's Prayer	1961	Masaki Kobayashi	Japan	190	History, Drama, War	4.65	Big & Epic
+In Bruges	2008	Martin McDonagh	UK	107	Drama, Comedy, Crime	4.12	Feel-Good & Fun
+28 Days Later	2002	Danny Boyle	UK	113	Science Fiction, Horror, Thriller	3.72	Dark & Disturbing
+28 Years Later	2025	Danny Boyle	UK	115	Science Fiction, Thriller, Horror	3.44	Dark & Disturbing
+Autumn Sonata	1978	Ingmar Bergman	Germany	93	Music, Drama	4.49	Heavy & Moving
+High and Low	1963	Akira Kurosawa	Japan	143	Thriller, Crime, Drama	4.60	Edge of Your Seat
+Seven Samurai	1954	Akira Kurosawa	Japan	207	Action, Drama	4.60	Big & Epic
+Dreams	1990	Akira Kurosawa	Japan	119	Drama, Fantasy	4.24	Mind-Benders & Oddities
+Yojimbo	1961	Akira Kurosawa	Japan	110	Thriller, Drama	4.30	Edge of Your Seat
+The Holdovers	2023	Alexander Payne	USA	133	Drama, Comedy	4.25	Feel-Good & Fun
+Sideways	2004	Alexander Payne	USA	127	Comedy, Romance, Drama	3.81	Feel-Good & Fun
+Another Round	2020	Thomas Vinterberg	Denmark	117	Drama, Comedy	4.10	Feel-Good & Fun
+Captain Fantastic	2016	Matt Ross	USA	119	Drama, Comedy	3.95	Feel-Good & Fun
+The Last King of Scotland	2006	Kevin Macdonald	USA	123	Drama	3.70	Edge of Your Seat
+An American Crime	2007	Tommy O'Haver	USA	97	Horror, Drama, Crime	3.23	Dark & Disturbing
+The Seventh Seal	1957	Ingmar Bergman	Sweden	96	Fantasy, Drama	4.32	Slow & Soulful
+The Sacrifice	1986	Andrei Tarkovsky	Sweden	149	Drama	4.28	Slow & Soulful
+Robot Dreams	2023	Pablo Berger	Spain	102	Comedy, Science Fiction, Animation, Drama	4.08	Feel-Good & Fun
+The Beatles: Get Back	2021	Peter Jackson	UK	468	Documentary, Music	4.54	Real Stories (Docs)
+Human	2015	Yann Arthus-Bertrand	France	190	Documentary	4.21	Real Stories (Docs)
+Harakiri	1962	Masaki Kobayashi	Japan	135	History, Drama, Action	4.68	Heavy & Moving
+Come and See	1985	Elem Klimov	USSR	142	War, Drama	4.61	Dark & Disturbing
+Saltburn	2023	Emerald Fennell	UK	131	Comedy, Drama, Thriller	3.35	Dark & Disturbing
+Go	2001	Isao Yukisada	Japan	122	Romance, Drama	3.84	Coming of Age
+Monster	2023	Hirokazu Kore-eda	Japan	125	Thriller, Mystery, Drama	4.35	Heavy & Moving
+Nobody Knows	2004	Hirokazu Kore-eda	Japan	141	Drama	4.41	Heavy & Moving
+Broker	2022	Hirokazu Kore-eda	South Korea	129	Drama	3.79	Heavy & Moving
+Shoplifters	2018	Hirokazu Kore-eda	Japan	121	Drama, Thriller, Crime	4.31	Heavy & Moving
+Bodies Bodies Bodies	2022	Halina Reijn	USA	94	Comedy, Horror, Mystery	3.26	Dark & Disturbing
+Your Lie in April	2016	Takehiko Shinjo	Japan	122	Romance, Music, Drama	3.24	Love & Longing
+Blue Period	2021	Koji Masunari	Japan	288	Animation, Drama	4.01	Coming of Age
+Light Shop	2024	Kim Hie-won	South Korea	400	Mystery, Drama	4.13	Mind-Benders & Oddities
+Logan	2017	James Mangold	USA	137	Drama, Science Fiction, Action	4.12	Edge of Your Seat
+Mission: Impossible – The Final Reckoning	2025	Christopher McQuarrie	USA	169	Action, Adventure, Thriller	3.45	Edge of Your Seat
+Mission: Impossible – Dead Reckoning	2023	Christopher McQuarrie	USA	164	Action, Adventure, Thriller	3.69	Edge of Your Seat
+Do the Right Thing	1989	Spike Lee	USA	120	Drama	4.40	Heavy & Moving
+Carlito's Way	1993	Brian De Palma	USA	144	Thriller, Drama, Crime	4.11	Edge of Your Seat
+Prey	2022	Dan Trachtenberg	USA	100	Action, Thriller, Science Fiction	3.60	Edge of Your Seat
+Predator: Killer of Killers	2025	Dan Trachtenberg	USA	85	Science Fiction, Thriller, Action, Animation	3.75	Edge of Your Seat
+The Fighter	2010	David O. Russell	USA	116	Drama	3.84	Heavy & Moving
+American Hustle	2013	David O. Russell	USA	138	Crime, Drama	3.35	Edge of Your Seat
+Irreversible	2002	Gaspar Noé	France	97	Crime, Thriller, Drama	3.62	Dark & Disturbing
+Millennium Actress	2001	Satoshi Kon	Japan	87	Drama, Romance, Animation	4.24	Mind-Benders & Oddities
+Central Station	1998	Walter Salles	Brazil	110	Drama	4.08	Heavy & Moving
+Closer	2004	Mike Nichols	UK	104	Drama, Romance	3.39	Heavy & Moving
+Howl's Moving Castle	2004	Hayao Miyazaki	Japan	119	Animation, Fantasy, Adventure	4.36	Feel-Good & Fun
+Castle in the Sky	1986	Hayao Miyazaki	Japan	125	Animation, Fantasy, Adventure, Action, Family	4.08	Feel-Good & Fun
+Nausicaä of the Valley of the Wind	1984	Hayao Miyazaki	Japan	117	Animation, Fantasy, Adventure	4.15	Feel-Good & Fun
+Girl, Interrupted	1999	James Mangold	USA	127	Drama	3.96	Heavy & Moving
+My Neighbor Totoro	1988	Hayao Miyazaki	Japan	86	Animation, Family, Fantasy	4.32	Feel-Good & Fun
+Grave of the Fireflies	1988	Isao Takahata	Japan	89	Animation, Drama, War	4.48	Heavy & Moving
+The Pelican Brief	1993	Alan J. Pakula	USA	141	Crime, Drama, Mystery, Thriller	3.33	Edge of Your Seat
+Burning	2018	Lee Chang-dong	South Korea	148	Drama, Mystery, Thriller	4.03	Mind-Benders & Oddities
+Brokeback Mountain	2005	Ang Lee	USA	134	Drama, Romance	4.16	Love & Longing
+The Whale	2022	Darren Aronofsky	USA	117	Drama	3.66	Heavy & Moving
+Mission: Impossible – Fallout	2018	Christopher McQuarrie	USA	147	Action, Adventure, Thriller	4.40	Edge of Your Seat
+The Master	2012	Paul Thomas Anderson	USA	138	Drama	3.98	Slow & Soulful
+Marriage Story	2019	Noah Baumbach	USA	137	Drama	4.01	Heavy & Moving
+Raging Bull	1980	Martin Scorsese	USA	129	Drama	4.21	Heavy & Moving
+Evil Does Not Exist	2023	Ryusuke Hamaguchi	Japan	106	Drama	3.84	Slow & Soulful
+Skyfall	2012	Sam Mendes	UK	143	Action, Adventure, Thriller	3.95	Edge of Your Seat
+Bingo: The King of the Mornings	2017	Daniel Rezende	Brazil	113	Drama, Comedy	3.89	Feel-Good & Fun
+Portrait of a Lady on Fire	2019	Céline Sciamma	France	121	Drama, Romance	4.42	Love & Longing
+Challengers	2024	Luca Guadagnino	USA	131	Drama, Romance	3.86	Love & Longing
+The Worst Person in the World	2021	Joachim Trier	Norway	128	Drama, Comedy, Romance	4.08	Love & Longing
+Chungking Express	1994	Wong Kar-wai	Hong Kong	102	Comedy, Drama, Romance	4.27	Love & Longing
+GoodFellas	1990	Martin Scorsese	USA	145	Crime, Drama	4.46	Edge of Your Seat
+Philadelphia	1993	Jonathan Demme	USA	125	Drama	3.94	Heavy & Moving
+American Gangster	2007	Ridley Scott	USA	157	Crime, Drama	3.94	Edge of Your Seat
+Amores Perros	2000	Alejandro G. Iñárritu	Mexico	154	Drama, Crime	4.19	Heavy & Moving
+Coco	2017	Lee Unkrich	USA	105	Animation, Family, Fantasy, Adventure, Comedy, Drama, Music	4.13	Feel-Good & Fun
+Y Tu Mamá También	2001	Alfonso Cuarón	Mexico	106	Romance, Drama	4.21	Coming of Age
+Doubt	2008	John Patrick Shanley	USA	104	Drama	3.96	Heavy & Moving
+Conclave	2024	Edward Berger	UK	120	Drama, Thriller, Mystery	3.92	Edge of Your Seat
+Spotlight	2015	Tom McCarthy	USA	129	Drama, History	4.12	Edge of Your Seat
+The Elephant Man	1980	David Lynch	USA	124	Drama, History	4.31	Heavy & Moving
+Blow	2001	Ted Demme	USA	124	Drama, Crime	3.55	Edge of Your Seat
+Lincoln	2012	Steven Spielberg	USA	150	Drama, History	3.59	Big & Epic
+Mystic River	2003	Clint Eastwood	USA	138	Drama, Thriller, Mystery	3.88	Heavy & Moving
+Nocturnal Animals	2016	Tom Ford	USA	116	Drama, Thriller	3.71	Dark & Disturbing
+American Sniper	2014	Clint Eastwood	USA	133	Action, War	3.43	Edge of Your Seat
+After Yang	2021	Kogonada	USA	96	Science Fiction, Drama, Family	3.83	Slow & Soulful
+The Green Knight	2021	David Lowery	Canada	130	Fantasy, Adventure, Drama	3.68	Mind-Benders & Oddities
+Melancholia	2011	Lars von Trier	Denmark	136	Drama, Science Fiction	3.84	Slow & Soulful
+Dogville	2003	Lars von Trier	Denmark	178	Drama, Crime, Thriller	4.20	Dark & Disturbing
+The Brutalist	2024	Brady Corbet	USA	215	Drama	3.89	Big & Epic
+Warfare	2025	Ray Mendoza, Alex Garland	USA	95	Action, War	3.53	Edge of Your Seat
+A Ghost Story	2017	David Lowery	USA	93	Drama, Fantasy, Horror	3.76	Slow & Soulful
+True Grit	2010	Joel Coen, Ethan Coen	USA	110	Western, Crime, Drama	3.84	Big & Epic
+We Need to Talk About Kevin	2011	Lynne Ramsay	UK	113	Drama, Thriller	3.78	Dark & Disturbing
+Adaptation.	2002	Spike Jonze	USA	115	Comedy, Drama	4.10	Mind-Benders & Oddities
+The Perks of Being a Wallflower	2012	Stephen Chbosky	USA	103	Drama	4.02	Coming of Age
+Moneyball	2011	Bennett Miller	USA	134	Drama	3.93	Feel-Good & Fun
+Chinatown	1974	Roman Polanski	USA	130	Thriller, Mystery, Crime	4.30	Edge of Your Seat
+Ford v Ferrari	2019	James Mangold	USA	153	Drama, Action, History	4.05	Edge of Your Seat
+Paris, Texas	1984	Wim Wenders	France	145	Drama	4.37	Slow & Soulful
+Asteroid City	2023	Wes Anderson	USA	105	Comedy, Drama, Fantasy, Science Fiction	3.47	Feel-Good & Fun
+The Life Aquatic with Steve Zissou	2004	Wes Anderson	USA	119	Comedy, Adventure, Drama	3.81	Feel-Good & Fun
+One Flew Over the Cuckoo's Nest	1975	Miloš Forman	USA	135	Drama	4.37	Heavy & Moving
+The Imitation Game	2014	Morten Tyldum	UK	113	Drama, War, Thriller, History	3.85	Heavy & Moving
+Booksmart	2019	Olivia Wilde	USA	102	Comedy	3.70	Coming of Age
+Aftersun	2022	Charlotte Wells	UK	101	Drama	4.21	Heavy & Moving
+Moonlight	2016	Barry Jenkins	USA	111	Drama	4.20	Coming of Age
+There Will Be Blood	2007	Paul Thomas Anderson	USA	158	Drama	4.46	Big & Epic
+Apocalypse Now	1979	Francis Ford Coppola	USA	147	Drama, War	4.43	Big & Epic
+The Thing	1982	John Carpenter	USA	109	Mystery, Science Fiction, Horror	4.35	Dark & Disturbing
+Dungeons & Dragons: Honor Among Thieves	2023	John Francis Daley, Jonathan Goldstein	USA	134	Fantasy, Adventure, Comedy	3.52	Feel-Good & Fun
+The Help	2011	Tate Taylor	USA	146	Drama	3.96	Heavy & Moving
+About Time	2013	Richard Curtis	UK	123	Drama, Fantasy, Romance	4.08	Love & Longing
+It's a Wonderful Life	1946	Frank Capra	USA	130	Family, Fantasy, Drama	4.44	Feel-Good & Fun
+Kung Fu Panda	2008	Mark Osborne, John Stevenson	USA	92	Comedy, Family, Animation, Action	3.92	Feel-Good & Fun
+Furiosa: A Mad Max Saga	2024	George Miller	Australia	149	Science Fiction, Action, Adventure	3.77	Edge of Your Seat
+A Silent Voice: The Movie	2016	Naoko Yamada	Japan	129	Romance, Animation, Drama	4.22	Coming of Age
+Citizen Kane	1941	Orson Welles	USA	119	Drama, Mystery	4.19	Big & Epic
+The Revenant	2015	Alejandro G. Iñárritu	USA	157	Adventure, Western, Drama	3.91	Edge of Your Seat
+Mickey 17	2025	Bong Joon Ho	USA	137	Comedy, Adventure, Science Fiction	3.56	Mind-Benders & Oddities
+Brazil	1985	Terry Gilliam	UK	143	Science Fiction, Comedy	4.10	Mind-Benders & Oddities
+Wheel of Fortune and Fantasy	2021	Ryusuke Hamaguchi	Japan	121	Romance, Drama	4.07	Slow & Soulful
+Three Billboards Outside Ebbing, Missouri	2017	Martin McDonagh	USA	115	Crime, Drama	4.06	Heavy & Moving
+I, Tonya	2017	Craig Gillespie	USA	120	Drama, Comedy	3.86	Feel-Good & Fun
+12 Years a Slave	2013	Steve McQueen	USA	134	History, Drama	4.17	Heavy & Moving
+The Invisible Man	2020	Leigh Whannell	USA	124	Science Fiction, Horror, Thriller	3.39	Dark & Disturbing
+Moon	2009	Duncan Jones	UK	97	Science Fiction, Drama	3.82	Mind-Benders & Oddities
+mother!	2017	Darren Aronofsky	USA	121	Drama, Horror	3.49	Dark & Disturbing
+The Lighthouse	2019	Robert Eggers	USA	109	Thriller, Fantasy, Horror, Drama	4.00	Dark & Disturbing
+The Witch	2015	Robert Eggers	USA	92	Horror	3.82	Dark & Disturbing
+Pan's Labyrinth	2006	Guillermo del Toro	Spain	118	War, Drama, Fantasy	4.15	Heavy & Moving
+The Boy and the Heron	2023	Hayao Miyazaki	Japan	124	Animation, Fantasy, Drama	3.90	Mind-Benders & Oddities
+Flow	2024	Gints Zilbalodis	Latvia	85	Family, Animation, Adventure, Fantasy	4.09	Feel-Good & Fun
+Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb	1964	Stanley Kubrick	UK	95	Comedy, War	4.30	Feel-Good & Fun
+American Psycho	2000	Mary Harron	USA	102	Crime, Drama, Thriller, Horror	3.76	Dark & Disturbing
+Collateral	2004	Michael Mann	USA	120	Crime, Drama, Thriller	3.88	Edge of Your Seat
+The Zone of Interest	2023	Jonathan Glazer	UK	105	Drama, War, History	3.86	Dark & Disturbing
+Schindler's List	1993	Steven Spielberg	USA	195	History, Drama, War	4.54	Heavy & Moving
+The Pianist	2002	Roman Polanski	France	150	War, Drama	4.41	Heavy & Moving
+Black Hawk Down	2001	Ridley Scott	USA	145	Action, History, War	3.70	Edge of Your Seat
+Full Metal Jacket	1987	Stanley Kubrick	UK	117	Drama, War	4.20	Heavy & Moving
+Upgrade	2018	Leigh Whannell	Australia	100	Thriller, Science Fiction, Action	3.65	Edge of Your Seat
+Synecdoche, New York	2008	Charlie Kaufman	USA	124	Drama	4.16	Mind-Benders & Oddities
+The Tree of Life	2011	Terrence Malick	USA	139	Fantasy, Drama	3.84	Slow & Soulful
+Mr. Nobody	2009	Jaco Van Dormael	Belgium	141	Romance, Drama, Science Fiction	3.68	Mind-Benders & Oddities
+Stalker	1979	Andrei Tarkovsky	USSR	162	Drama, Science Fiction	4.39	Slow & Soulful
+Solaris	1972	Andrei Tarkovsky	USSR	167	Mystery, Science Fiction, Drama	4.22	Slow & Soulful
+Scarface	1983	Brian De Palma	USA	170	Drama, Action, Crime	4.14	Edge of Your Seat
+Boogie Nights	1997	Paul Thomas Anderson	USA	156	Drama, Comedy	4.21	Feel-Good & Fun
+Before Sunrise	1995	Richard Linklater	USA	101	Romance, Drama	4.30	Love & Longing
+Before Midnight	2013	Richard Linklater	USA	109	Drama, Romance	4.01	Love & Longing
+Before Sunset	2004	Richard Linklater	USA	80	Drama, Romance	4.31	Love & Longing
+Zombieland	2009	Ruben Fleischer	USA	88	Comedy, Horror	3.52	Feel-Good & Fun
+Being John Malkovich	1999	Spike Jonze	USA	113	Comedy, Drama, Fantasy	4.07	Mind-Benders & Oddities
+Incendies	2010	Denis Villeneuve	Canada	131	Mystery, Drama, War	4.45	Heavy & Moving
+Ad Astra	2019	James Gray	USA	123	Science Fiction, Drama	3.35	Slow & Soulful`;
+
+// ---------------- registry: canonical film records ----------------
+function norm(s) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+}
+const REG = new Map();          // key -> film
+const TITLE_IDX = new Map();    // normTitle -> [film,...]
+let nextId = 0;
+
+function keyOf(title, year) { return norm(title) + "|" + (year || "?"); }
+
+function getOrCreate(title, year) {
+  // exact key
+  let k = keyOf(title, year);
+  if (REG.has(k)) return REG.get(k);
+  const nt = norm(title);
+  const cands = TITLE_IDX.get(nt) || [];
+  // year±1 tolerance
+  if (year) {
+    const near = cands.find(f => f.year && Math.abs(f.year - year) <= 1);
+    if (near) return near;
+  } else if (cands.length === 1) {
+    return cands[0];
+  }
+  const f = { id: nextId++, title, year: year || null, director: null, country: null,
+              runtime: null, genres: null, rating: null, vibe: null, meta: false,
+              decade: year ? Math.floor(year / 10) * 10 : null };
+  REG.set(k, f);
+  if (!TITLE_IDX.has(nt)) TITLE_IDX.set(nt, []);
+  TITLE_IDX.get(nt).push(f);
+  return f;
+}
+
+// ---------------- built-in dataset ----------------
+const BASE_FILMS = RAW.trim().split("\n").map(line => {
+  const [title, year, director, country, runtime, genres, rating, vibe] = line.split("\t");
+  const f = getOrCreate(title, +year);
+  Object.assign(f, {
+    director, country, runtime: +runtime,
+    genres: genres.split(",").map(g => g.trim()),
+    rating: +rating, vibe, meta: true
+  });
+  return f;
+});
+
+// ---------------- sources ----------------
+const sources = [
+  { id: "base", name: "Rafa's watchlist", films: BASE_FILMS, active: true, removable: false }
+];
+let srcMode = "any"; // any | all
+let srcSeq = 0;
+
+function activeSources() { return sources.filter(s => s.active); }
+
+function combinedFilms() {
+  const act = activeSources();
+  const m = new Map(); // film.id -> {film, srcs:[names]}
+  act.forEach(s => s.films.forEach(f => {
+    if (!m.has(f.id)) m.set(f.id, { film: f, srcs: [] });
+    m.get(f.id).srcs.push(s.name);
+  }));
+  let arr = [...m.values()];
+  if (srcMode === "all" && act.length > 1) arr = arr.filter(e => e.srcs.length === act.length);
+  return arr;
+}
+
+// ---------------- state ----------------
+const state = {
+  vibes: new Set(), genres: new Set(), decades: new Set(),
+  maxRuntime: 360, minRating: 3.0, search: "", hidden: new Set(),
+};
+let lastPickId = null;
+let pickSeq = 0;
+let historyPicks = [];
+let browseLimit = 24;
+let hiddenByMeta = 0;
+
+function pool() {
+  const q = state.search.trim().toLowerCase();
+  hiddenByMeta = 0;
+  return combinedFilms().filter(e => {
+    const f = e.film;
+    if (state.hidden.has(f.id)) return false;
+    if (q && !((f.title || "").toLowerCase().includes(q)
+      || (f.director || "").toLowerCase().includes(q)
+      || (f.country || "").toLowerCase().includes(q))) return false;
+    if (state.decades.size && !state.decades.has(f.decade)) { if (f.decade === null) hiddenByMeta++; return false; }
+    // metadata-dependent filters: unknown-metadata films drop out only when the filter is tightened
+    if (state.vibes.size) { if (!f.vibe) { hiddenByMeta++; return false; } if (!state.vibes.has(f.vibe)) return false; }
+    if (state.genres.size) { if (!f.genres) { hiddenByMeta++; return false; } if (!f.genres.some(g => state.genres.has(g))) return false; }
+    if (state.maxRuntime < 360) { if (!f.runtime) { hiddenByMeta++; return false; } if (f.runtime > state.maxRuntime) return false; }
+    if (state.minRating > 3.0 + 1e-9) { if (!f.rating) { hiddenByMeta++; return false; } if (f.rating < state.minRating - 1e-9) return false; }
+    return true;
+  });
+}
+
+// ---------------- source UI ----------------
+const srcChipsEl = document.getElementById("srcChips");
+const importMsg = document.getElementById("importMsg");
+
+function renderSources() {
+  srcChipsEl.innerHTML = "";
+  sources.forEach(s => {
+    const el = document.createElement("span");
+    el.className = "src" + (s.active ? " on" : "");
+    el.innerHTML = '<span>' + esc(s.name) + '</span><span class="cnt">' + s.films.length + '</span>';
+    el.onclick = () => { s.active = !s.active; renderSources(); rebuildChips(); refresh(); };
+    if (s.removable) {
+      const x = document.createElement("button");
+      x.className = "x"; x.textContent = "✕"; x.title = "remove list";
+      x.onclick = ev => { ev.stopPropagation(); sources.splice(sources.indexOf(s), 1); renderSources(); rebuildChips(); refresh(); };
+      el.appendChild(x);
+    }
+    srcChipsEl.appendChild(el);
+  });
+
+  const up = document.createElement("button");
+  up.className = "addbtn"; up.textContent = "+ Upload CSV";
+  up.onclick = () => document.getElementById("csvFile").click();
+  srcChipsEl.appendChild(up);
+
+  const pa = document.createElement("button");
+  pa.className = "addbtn pink"; pa.textContent = "+ Paste a list";
+  pa.onclick = () => document.getElementById("pastebox").classList.toggle("show");
+  srcChipsEl.appendChild(pa);
+
+  if (activeSources().length > 1) {
+    const mode = document.createElement("span");
+    mode.className = "mode";
+    [["any", "on any list"], ["all", "on every list"]].forEach(([v, label]) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      if (srcMode === v) b.classList.add("on");
+      b.onclick = () => { srcMode = v; renderSources(); refresh(); };
+      mode.appendChild(b);
+    });
+    srcChipsEl.appendChild(mode);
+  }
+}
+
+function addSource(name, films, note) {
+  if (!films.length) { importMsg.innerHTML = 'Couldn\'t find any films in that — check the format.'; return; }
+  sources.push({ id: "s" + (++srcSeq), name, films, active: true, removable: true });
+  const enriched = films.filter(f => f.meta).length;
+  importMsg.innerHTML = '<span class="ok">Added "' + esc(name) + '" — ' + films.length + " films</span>"
+    + (enriched ? ' · <span class="pk">' + enriched + " matched to the rich database</span>" : "")
+    + (note ? " · " + note : "");
+  renderSources(); rebuildChips(); refresh();
+}
+
+// CSV parsing (handles quoted fields; Letterboxd export: Date,Name,Year,Letterboxd URI)
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.some(x => x.trim())) rows.push(row);
+      row = [];
+    } else cur += c;
+  }
+  row.push(cur);
+  if (row.some(x => x.trim())) rows.push(row);
+  return rows;
+}
+
+function filmsFromCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  let nameCol = head.findIndex(h => h === "name" || h === "title");
+  let yearCol = head.findIndex(h => h === "year");
+  let start = 1;
+  if (nameCol === -1) { nameCol = 0; yearCol = -1; start = 0; } // headerless: treat col 0 as titles
+  const films = [];
+  const seen = new Set();
+  for (let i = start; i < rows.length; i++) {
+    const title = (rows[i][nameCol] || "").trim();
+    if (!title) continue;
+    const y = yearCol >= 0 ? parseInt(rows[i][yearCol]) : NaN;
+    const f = getOrCreate(title, isNaN(y) ? null : y);
+    if (!seen.has(f.id)) { seen.add(f.id); films.push(f); }
+  }
+  return films;
+}
+
+function filmsFromLines(text) {
+  const films = [];
+  const seen = new Set();
+  text.split("\n").forEach(line => {
+    let t = line.trim();
+    if (!t) return;
+    let year = null;
+    let m = t.match(/^(.*?)[\s]*[\(\[]\s*(\d{4})\s*[\)\]]\s*$/);   // Title (1999)
+    if (!m) m = t.match(/^(.*?)[,\s]+(\d{4})$/);                    // Title, 1999 / Title 1999
+    if (m && +m[2] >= 1880 && +m[2] <= 2032) { t = m[1].trim(); year = +m[2]; }
+    if (!t) return;
+    const f = getOrCreate(t, year);
+    if (!seen.has(f.id)) { seen.add(f.id); films.push(f); }
+  });
+  return films;
+}
+
+document.getElementById("csvFile").addEventListener("change", e => {
+  [...e.target.files].forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const films = file.name.toLowerCase().endsWith(".csv")
+        ? filmsFromCSV(reader.result)
+        : filmsFromLines(reader.result);
+      addSource(file.name.replace(/\.(csv|txt)$/i, ""), films);
+    };
+    reader.readAsText(file);
+  });
+  e.target.value = "";
+});
+
+document.getElementById("pasteAdd").onclick = () => {
+  const films = filmsFromLines(document.getElementById("pasteArea").value);
+  const name = document.getElementById("pasteName").value.trim() || ("List " + (srcSeq + 1));
+  addSource(name, films);
+  document.getElementById("pasteArea").value = "";
+  document.getElementById("pasteName").value = "";
+  document.getElementById("pastebox").classList.remove("show");
+};
+document.getElementById("pasteCancel").onclick = () => document.getElementById("pastebox").classList.remove("show");
+
+// ---------------- filter chips ----------------
+const VIBE_ORDER = ["Feel-Good & Fun","Love & Longing","Coming of Age","Edge of Your Seat","Dark & Disturbing","Heavy & Moving","Mind-Benders & Oddities","Slow & Soulful","Big & Epic","Real Stories (Docs)"];
+const VIBE_EMOJI = {
+  "Feel-Good & Fun": "😊", "Love & Longing": "💌", "Coming of Age": "🌱",
+  "Edge of Your Seat": "😬", "Dark & Disturbing": "🕯️", "Heavy & Moving": "💔",
+  "Mind-Benders & Oddities": "🌀", "Slow & Soulful": "🍂", "Big & Epic": "🏔️",
+  "Real Stories (Docs)": "🎙️",
+};
+function vibeLabel(v) { return esc(v) + ' <span class="ve">' + (VIBE_EMOJI[v] || "") + "</span>"; }
+
+function buildChips(el, items, set, fmt) {
+  el.innerHTML = "";
+  items.forEach(([key, count]) => {
+    const c = document.createElement("button");
+    c.className = "chip" + (set.has(key) ? " on" : "");
+    c.innerHTML = (fmt ? fmt(key) : esc(String(key))) + (count === null ? "" : '<span class="n">' + count + "</span>");
+    c.onclick = () => { set.has(key) ? set.delete(key) : set.add(key); c.classList.toggle("on"); refresh(); };
+    el.appendChild(c);
+  });
+}
+
+function rebuildChips() {
+  if (mode === "db") {
+    const vc = document.getElementById("vibeChips");
+    vc.innerHTML = "";
+    VIBE_ORDER.forEach(v => {
+      const c = document.createElement("button");
+      c.className = "chip" + (db.vibe === v ? " on" : "");
+      c.innerHTML = vibeLabel(v);
+      c.onclick = () => { db.vibe = db.vibe === v ? null : v; rebuildChips(); refresh(); };
+      vc.appendChild(c);
+    });
+    buildChips(document.getElementById("genreChips"), GENRES.map(([id, name]) => [id, null]), db.genres, id => GENRE_NAME.get(id));
+    const decs = [];
+    for (let d = 1930; d <= 2020; d += 10) decs.push([d, null]);
+    buildChips(document.getElementById("decadeChips"), decs, db.decades, d => d + "s");
+    document.getElementById("peopleList").innerHTML = "";
+    return;
+  }
+  const films = combinedFilms().map(e => e.film);
+  const vc = new Map(), gc = new Map(), dc = new Map();
+  films.forEach(f => {
+    if (f.vibe) vc.set(f.vibe, (vc.get(f.vibe) || 0) + 1);
+    if (f.genres) f.genres.forEach(g => gc.set(g, (gc.get(g) || 0) + 1));
+    if (f.decade !== null) dc.set(f.decade, (dc.get(f.decade) || 0) + 1);
+  });
+  [...state.vibes].forEach(v => { if (!vc.has(v)) state.vibes.delete(v); });
+  [...state.genres].forEach(g => { if (!gc.has(g)) state.genres.delete(g); });
+  [...state.decades].forEach(d => { if (!dc.has(d)) state.decades.delete(d); });
+  buildChips(document.getElementById("vibeChips"),
+    VIBE_ORDER.filter(v => vc.has(v)).map(v => [v, vc.get(v)]), state.vibes, vibeLabel);
+  buildChips(document.getElementById("genreChips"),
+    [...gc.entries()].sort((a, b) => b[1] - a[1]), state.genres);
+  buildChips(document.getElementById("decadeChips"),
+    [...dc.entries()].sort((a, b) => a[0] - b[0]), state.decades, d => d + "s");
+  // datalist
+  const dl = document.getElementById("peopleList");
+  dl.innerHTML = "";
+  const names = new Set();
+  films.forEach(f => {
+    if (f.director) f.director.split(",").forEach(d => names.add(d.trim()));
+    if (f.country) names.add(f.country);
+  });
+  [...names].sort().forEach(n => {
+    const o = document.createElement("option"); o.value = n; dl.appendChild(o);
+  });
+}
+
+// ---------------- inputs ----------------
+function updateRuntimeVal() {
+  const v = mode === "db" ? db.maxRuntime : state.maxRuntime;
+  document.getElementById("runtimeVal").textContent = v >= 360 ? "any" : "≤ " + fmtRuntime(v);
+}
+function updateRatingVal() {
+  if (mode === "db") document.getElementById("ratingVal").textContent = db.minRating ? "★ " + db.minRating.toFixed(1) + "+" : "any";
+  else document.getElementById("ratingVal").textContent = state.minRating <= 3.0 ? "any" : "★ " + state.minRating.toFixed(1) + "+";
+}
+document.getElementById("runtime").oninput = e => {
+  if (mode === "db") db.maxRuntime = +e.target.value; else state.maxRuntime = +e.target.value;
+  updateRuntimeVal();
+  refresh();
+};
+document.getElementById("rating").oninput = e => {
+  if (mode === "db") { const v = +e.target.value; db.minRating = v <= 5.0 ? 0 : v; }
+  else state.minRating = +e.target.value;
+  updateRatingVal();
+  refresh();
+};
+document.getElementById("search").oninput = e => {
+  if (mode === "db") db.query = e.target.value; else state.search = e.target.value;
+  refresh();
+};
+document.getElementById("clearBtn").onclick = () => {
+  if (mode === "db") {
+    db.vibe = null; db.genres.clear(); db.decades.clear(); db.minRating = 0; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
+    document.getElementById("rating").value = 5.0;
+    document.getElementById("streamOnly").classList.remove("on");
+  } else {
+    state.vibes.clear(); state.genres.clear(); state.decades.clear();
+    state.maxRuntime = 360; state.minRating = 3.0; state.search = "";
+    document.getElementById("rating").value = 3.0;
+  }
+  document.getElementById("runtime").value = 360;
+  document.getElementById("search").value = "";
+  updateRuntimeVal(); updateRatingVal();
+  document.querySelectorAll(".chip.on").forEach(c => { if (c.id !== "streamOnly" || mode !== "lists") c.classList.remove("on"); });
+  rebuildChips();
+  refresh();
+};
+
+// ---------------- helpers ----------------
+function fmtRuntime(m) { return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60 ? m % 60 + "m" : "") : m + "m"; }
+function lbSearchUrl(f) { return "https://letterboxd.com/search/films/" + encodeURIComponent(f.title + (f.year ? " " + f.year : "")) + "/"; }
+
+// Direct film-page links. Letterboxd slugs are usually the slugified title, but
+// remakes/common titles carry a year suffix — verified overrides below.
+const SLUG_OVERRIDES = {
+  "8½": "8-half",
+  "TÁR": "tar-2022",
+  "Monster": "monster-2023",
+  "Go": "go-2001",
+  "F1": "f1-the-movie",
+  "Room": "room-2015",
+  "Control": "control-2007",
+  "Prey": "prey-2022",
+  "Flow": "flow-2024",
+  "mother!": "mother-2017",
+  "Mission: Impossible – Dead Reckoning": "mission-impossible-dead-reckoning-part-one",
+  "Rio, 100 Degrees F°": "rio-100-degrees-f",
+};
+function lbSlug(f) {
+  if (SLUG_OVERRIDES[f.title]) return SLUG_OVERRIDES[f.title];
+  return f.title.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/['’]/g, "").replace(/&/g, " ")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function lbFilmUrl(f) { return "https://letterboxd.com/film/" + lbSlug(f) + "/"; }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+
+// ---------------- TMDB: database mode + enrichment ----------------
+const TMDB_KEY = "678e7af359eb1c530cf8a0d81d8dfd8a";
+const TMDB_IMG = "https://image.tmdb.org/t/p/";
+let mode = "lists"; // "lists" | "db"
+
+const GENRES = [[28,"Action"],[12,"Adventure"],[16,"Animation"],[35,"Comedy"],[80,"Crime"],[99,"Documentary"],[18,"Drama"],[10751,"Family"],[14,"Fantasy"],[36,"History"],[27,"Horror"],[10402,"Music"],[9648,"Mystery"],[10749,"Romance"],[878,"Sci-Fi"],[53,"Thriller"],[10752,"War"],[37,"Western"]];
+const GENRE_NAME = new Map(GENRES);
+const COUNTRIES = [["BR","🇧🇷 Brazil"],["US","🇺🇸 United States"],["PT","🇵🇹 Portugal"],["AR","🇦🇷 Argentina"],["MX","🇲🇽 Mexico"],["CL","🇨🇱 Chile"],["CO","🇨🇴 Colombia"],["UY","🇺🇾 Uruguay"],["ES","🇪🇸 Spain"],["FR","🇫🇷 France"],["DE","🇩🇪 Germany"],["IT","🇮🇹 Italy"],["NL","🇳🇱 Netherlands"],["SE","🇸🇪 Sweden"],["GB","🇬🇧 United Kingdom"],["IE","🇮🇪 Ireland"],["PL","🇵🇱 Poland"],["JP","🇯🇵 Japan"],["KR","🇰🇷 South Korea"],["IN","🇮🇳 India"],["CA","🇨🇦 Canada"],["AU","🇦🇺 Australia"],["NZ","🇳🇿 New Zealand"],["TR","🇹🇷 Türkiye"],["ZA","🇿🇦 South Africa"]];
+
+const db = { vibe: null, genres: new Set(), decades: new Set(), minRating: 0, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
+
+// Vibe → TMDB discover mapping. Approximate by design: a vibe becomes a genre
+// group (| = OR) that must match, minus excluded genres, plus optional keyword/runtime.
+const VIBE_DB = {
+  "Feel-Good & Fun":         { wg: "35|10751|12|16", wo: "27,10752,80" },
+  "Love & Longing":          { wg: "10749", wo: "27" },
+  "Coming of Age":           { kw: "10683" },
+  "Edge of Your Seat":       { wg: "53|28|80", wo: "10751" },
+  "Dark & Disturbing":       { wg: "27|53", wo: "35,10751,10402" },
+  "Heavy & Moving":          { wg: "18", wo: "35,28,12,27,14" },
+  "Mind-Benders & Oddities": { wg: "9648|878|14", wo: "10751" },
+  "Slow & Soulful":          { wg: "18", wo: "28,53,27,35,12", extra: { "with_runtime.gte": 95 } },
+  "Big & Epic":              { wg: "18|12|36|10752|37", extra: { "with_runtime.gte": 140 } },
+  "Real Stories (Docs)":     { wg: "99" },
+};
+
+async function tmdb(path, params) {
+  const u = new URL("https://api.themoviedb.org/3" + path);
+  u.searchParams.set("api_key", TMDB_KEY);
+  for (const k in (params || {})) {
+    if (params[k] !== "" && params[k] !== null && params[k] !== undefined) u.searchParams.set(k, params[k]);
+  }
+  const r = await fetch(u);
+  if (!r.ok) throw new Error("TMDB " + r.status);
+  return r.json();
+}
+
+function discoverParams(forceDecade) {
+  const p = { sort_by: "popularity.desc", "vote_count.gte": 100, include_adult: false };
+  const v = VIBE_DB[db.vibe];
+  const gGroups = [];
+  if (v && v.wg) gGroups.push(v.wg);
+  if (db.genres.size) gGroups.push([...db.genres].join("|"));
+  if (gGroups.length) p.with_genres = gGroups.join(","); // groups AND-ed, each group is an OR
+  if (v && v.wo) p.without_genres = v.wo;
+  if (v && v.kw) p.with_keywords = v.kw;
+  if (db.minRating > 0) p["vote_average.gte"] = db.minRating;
+  if (db.maxRuntime < 360) { p["with_runtime.lte"] = db.maxRuntime; p["with_runtime.gte"] = 40; }
+  if (v && v.extra) Object.assign(p, v.extra);
+  const decs = forceDecade !== undefined ? [forceDecade] : [...db.decades];
+  if (decs.length) {
+    p["primary_release_date.gte"] = Math.min(...decs) + "-01-01";
+    p["primary_release_date.lte"] = (Math.max(...decs) + 9) + "-12-31";
+  }
+  if (db.streamOnly) { p.watch_region = db.country; p.with_watch_monetization_types = "flatrate|free|ads"; }
+  return p;
+}
+
+function dbQuery(page) {
+  if (db.query.trim()) return tmdb("/search/movie", { query: db.query.trim(), page: page || 1, include_adult: false });
+  return tmdb("/discover/movie", Object.assign(discoverParams(), { page: page || 1 }));
+}
+
+let dbTimer = null;
+function refreshDb() { clearTimeout(dbTimer); dbTimer = setTimeout(doRefreshDb, 280); }
+async function doRefreshDb() {
+  const seq = ++db.seq;
+  const pc = document.getElementById("poolCount");
+  pc.innerHTML = "searching the database…";
+  try {
+    const d = await dbQuery(1);
+    if (seq !== db.seq) return;
+    db.total = d.total_results; db.pages = Math.min(d.total_pages, 500); db.page1 = d.results;
+    pc.innerHTML = "<b>" + db.total.toLocaleString() + "</b> film" + (db.total === 1 ? "" : "s")
+      + (db.query.trim() ? " match your search" : " match your filters")
+      + (db.streamOnly ? ' <span class="warn">· streaming in ' + esc(db.country) + "</span>" : "");
+    pc.classList.toggle("zero", !db.total);
+    document.getElementById("pickBtn").disabled = !db.total;
+    renderDbGrid(db.page1, false);
+  } catch (e) {
+    if (seq !== db.seq) return;
+    pc.innerHTML = '<span class="warn">database unreachable — check your connection and retry</span>';
+  }
+}
+
+let dbGridPage = 1;
+function renderDbGrid(items, append) {
+  const grid = document.getElementById("grid");
+  if (!append) { grid.innerHTML = ""; dbGridPage = 1; }
+  else { const sm = grid.querySelector(".showmore"); if (sm) sm.remove(); }
+  document.getElementById("browseCnt").textContent = db.total ? "most popular of " + db.total.toLocaleString() : "";
+  if (!items.length && !append) {
+    grid.innerHTML = '<div class="empty">Nothing matches — <span class="fix">' + dbLoosenHint() + "</span></div>";
+    return;
+  }
+  items.forEach(m => {
+    const c = document.createElement("div");
+    c.className = "pcard";
+    c.innerHTML = (m.poster_path ? '<img loading="lazy" src="' + TMDB_IMG + "w342" + m.poster_path + '" alt="">' : "<img alt=''>")
+      + '<div class="pc-body"><div class="pc-title">' + esc(m.title) + "</div>"
+      + '<div class="pc-sub"><span>' + (m.release_date ? m.release_date.slice(0, 4) : "—") + "</span>"
+      + (m.vote_average ? '<span class="rt">★ ' + m.vote_average.toFixed(1) + "</span>" : "") + "</div></div>";
+    c.onclick = () => { resultEl.classList.add("show"); showDbPick(m); window.scrollTo({ top: document.getElementById("pickBtn").offsetTop - 80, behavior: "smooth" }); };
+    grid.appendChild(c);
+  });
+  if (dbGridPage < db.pages && dbGridPage < 10) {
+    const more = document.createElement("div");
+    more.className = "showmore";
+    const b = document.createElement("button");
+    b.className = "btn2"; b.textContent = "Show more";
+    b.onclick = async () => { dbGridPage++; try { const d = await dbQuery(dbGridPage); renderDbGrid(d.results, true); } catch (e) {} };
+    more.appendChild(b);
+    grid.appendChild(more);
+  }
+}
+function dbLoosenHint() {
+  const v = VIBE_DB[db.vibe];
+  if (v && v.extra && v.extra["with_runtime.gte"] && db.maxRuntime < v.extra["with_runtime.gte"] + 20)
+    return '"' + db.vibe + '" wants longer films — raise max runtime or drop the vibe';
+  if (db.vibe && db.genres.size) return "the vibe and genre picks may contradict — try dropping one";
+  if (db.streamOnly) return "try turning off streaming-only, or another country";
+  if (db.minRating >= 7.5) return "try lowering the minimum rating";
+  if (db.maxRuntime < 100) return "try relaxing the runtime";
+  return "loosen a filter or two";
+}
+
+// enrichment shared by both modes
+let enrichSeq = 0;
+let lastWp = null;
+function clearEnrichment() {
+  document.getElementById("rPoster").style.display = "none";
+  const o = document.getElementById("rOverview"); o.classList.remove("show"); o.textContent = "";
+  document.getElementById("rWhere").innerHTML = "";
+  document.getElementById("rScores").innerHTML = "";
+  lastWp = null;
+}
+
+// ---------------- OMDb: IMDb / Rotten Tomatoes / Metacritic + blended score ----------------
+const OMDB_KEY = "e478ffb0";
+const omdbCache = new Map();
+async function fetchOmdb(imdbId) {
+  if (!imdbId) return null;
+  if (omdbCache.has(imdbId)) return omdbCache.get(imdbId);
+  try {
+    const r = await fetch("https://www.omdbapi.com/?i=" + encodeURIComponent(imdbId) + "&apikey=" + OMDB_KEY);
+    const d = await r.json();
+    const v = d && d.Response === "True" ? d : null;
+    omdbCache.set(imdbId, v);
+    return v;
+  } catch (e) { return null; }
+}
+function numOf(x) { const v = parseFloat(x); return isNaN(v) ? null : v; }
+function renderScores(base, omdb) {
+  const el = document.getElementById("rScores");
+  const parts = [], out = [];
+  if (base.letterboxd) parts.push(base.letterboxd * 20);
+  if (base.tmdb) parts.push(base.tmdb * 10);
+  if (omdb) {
+    const imdb = numOf(omdb.imdbRating);
+    if (imdb !== null) { parts.push(imdb * 10); out.push("IMDb <b>" + imdb.toFixed(1) + "</b>"); }
+    // RT is an approval meter (% of positive reviews), not a rating — shown but kept out of the blend
+    const rt = (omdb.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
+    const rtv = rt ? numOf(rt.Value) : null;
+    if (rtv !== null) out.push("🍅 <b>" + Math.round(rtv) + "%</b>");
+    const mc = numOf(omdb.Metascore);
+    if (mc !== null) { parts.push(mc); out.push("Meta <b>" + Math.round(mc) + "</b>"); }
+  }
+  if (!out.length || parts.length < 2) { el.innerHTML = out.join(" · "); return; }
+  const blend = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+  el.innerHTML = out.join(" · ") + ' · <span class="bl">blended ★ ' + blend + "/100</span>";
+}
+function setPoster(path) {
+  const el = document.getElementById("rPoster");
+  if (path) { el.src = TMDB_IMG + "w342" + path; el.style.display = "block"; } else el.style.display = "none";
+}
+function setOverview(text) {
+  const o = document.getElementById("rOverview");
+  if (text) { o.textContent = text.length > 280 ? text.slice(0, 277).replace(/\s+\S*$/, "") + "…" : text; o.classList.add("show"); }
+  else o.classList.remove("show");
+}
+function renderProviders(wp) {
+  lastWp = wp || null;
+  const el = document.getElementById("rWhere");
+  el.innerHTML = "";
+  const data = wp && wp.results && wp.results[db.country];
+  if (!data) { el.innerHTML = '<span class="jw">no streaming info for ' + esc(db.country) + " (JustWatch/TMDB)</span>"; return; }
+  [["flatrate", "stream"], ["rent", "rent"], ["buy", "buy"]].forEach(([k, label]) => {
+    if (!data[k] || !data[k].length) return;
+    const g = document.createElement("span");
+    g.className = "wgroup";
+    g.innerHTML = '<span class="wlabel">' + label + "</span>"
+      + data[k].slice(0, 6).map(p => '<img src="' + TMDB_IMG + "w92" + p.logo_path + '" title="' + esc(p.provider_name) + '" alt="' + esc(p.provider_name) + '">').join("");
+    el.appendChild(g);
+  });
+  const jw = document.createElement("span");
+  jw.className = "jw";
+  jw.innerHTML = (data.link ? '<a href="' + data.link + '" target="_blank" rel="noopener">where to watch ↗</a> · ' : "") + "streaming data by JustWatch via TMDB";
+  el.appendChild(jw);
+}
+
+const detailCache = new Map();
+async function tmdbDetails(id, append) {
+  const key = id + ":" + append;
+  if (detailCache.has(key)) return detailCache.get(key);
+  const d = await tmdb("/movie/" + id, { append_to_response: append });
+  detailCache.set(key, d);
+  return d;
+}
+
+const searchCache = new Map();
+async function enrichListPick(f) {
+  const seq = ++enrichSeq;
+  try {
+    const key = keyOf(f.title, f.year);
+    let m = searchCache.get(key);
+    if (m === undefined) {
+      const d = await tmdb("/search/movie", { query: f.title, year: f.year || "", include_adult: false });
+      m = d.results && d.results[0] ? d.results[0] : null;
+      searchCache.set(key, m);
+    }
+    if (seq !== enrichSeq || !m) return;
+    setPoster(m.poster_path);
+    setOverview(m.overview);
+    const det = await tmdbDetails(m.id, "watch/providers");
+    if (seq !== enrichSeq) return;
+    renderProviders(det["watch/providers"]);
+    const omdb = await fetchOmdb(det.imdb_id);
+    if (seq !== enrichSeq) return;
+    renderScores({ letterboxd: f.rating, tmdb: m.vote_average }, omdb);
+  } catch (e) { /* enrichment is best-effort */ }
+}
+
+async function showDbPick(m) {
+  lastPickId = null;
+  const seq = ++enrichSeq;
+  clearEnrichment();
+  document.getElementById("rVibe").textContent = db.vibe && !db.query.trim()
+    ? db.vibe + " " + (VIBE_EMOJI[db.vibe] || "") + " · whole database" : "from the whole database";
+  titleEl.classList.remove("rolling");
+  titleEl.textContent = m.title;
+  document.getElementById("rSub").textContent = m.release_date ? m.release_date.slice(0, 4) : "";
+  document.getElementById("rSrcs").innerHTML = "";
+  document.getElementById("rRating").textContent = m.vote_average ? "★ " + m.vote_average.toFixed(1) : "—";
+  document.getElementById("rRatingSrc").textContent = "TMDB";
+  document.getElementById("rRuntime").textContent = "…";
+  document.getElementById("rCountry").textContent = "…";
+  document.getElementById("rGenres").textContent = (m.genre_ids || []).map(g => GENRE_NAME.get(g)).filter(Boolean).join(" · ");
+  const pf = { title: m.title, year: m.release_date ? +m.release_date.slice(0, 4) : null };
+  document.getElementById("lbLink").href = lbFilmUrl(pf);
+  document.getElementById("searchFallback").href = lbSearchUrl(pf);
+  setPoster(m.poster_path);
+  setOverview(m.overview);
+  historyPicks.unshift(m.title);
+  historyPicks = historyPicks.slice(0, 5);
+  document.getElementById("history").innerHTML = historyPicks.length > 1
+    ? "recent rolls: <span>" + historyPicks.slice(1).map(esc).join(" · ") + "</span>" : "";
+  try {
+    const det = await tmdbDetails(m.id, "credits,watch/providers");
+    if (seq !== enrichSeq) return;
+    document.getElementById("rRuntime").textContent = det.runtime ? fmtRuntime(det.runtime) : "—";
+    document.getElementById("rCountry").textContent = det.production_countries && det.production_countries[0] ? det.production_countries[0].name : "—";
+    const dir = det.credits && det.credits.crew ? det.credits.crew.filter(c => c.job === "Director").map(c => c.name).join(", ") : "";
+    if (dir) document.getElementById("rSub").textContent = (m.release_date ? m.release_date.slice(0, 4) : "") + " · directed by " + dir;
+    renderProviders(det["watch/providers"]);
+    const omdb = await fetchOmdb(det.imdb_id);
+    if (seq !== enrichSeq) return;
+    renderScores({ tmdb: m.vote_average }, omdb);
+  } catch (e) {
+    if (seq !== enrichSeq) return;
+    document.getElementById("rRuntime").textContent = "—";
+    document.getElementById("rCountry").textContent = "—";
+  }
+}
+
+async function dbPickRandom() {
+  const ps = ++pickSeq;
+  resultEl.classList.add("show");
+  titleEl.classList.add("rolling");
+  titleEl.textContent = "rolling across ~1M films…";
+  clearEnrichment();
+  try {
+    let params = null;
+    if (!db.query.trim() && db.decades.size > 1) {
+      const ds = [...db.decades];
+      params = discoverParams(ds[Math.floor(Math.random() * ds.length)]);
+    }
+    const first = params ? await tmdb("/discover/movie", Object.assign({}, params, { page: 1 })) : await dbQuery(1);
+    if (ps !== pickSeq) return;
+    if (!first.total_results) {
+      titleEl.classList.remove("rolling");
+      titleEl.textContent = "nothing matches — loosen a filter";
+      return;
+    }
+    const pages = Math.min(first.total_pages, 500);
+    const pg = 1 + Math.floor(Math.random() * pages);
+    const d = pg === 1 ? first : (params ? await tmdb("/discover/movie", Object.assign({}, params, { page: pg })) : await dbQuery(pg));
+    if (ps !== pickSeq) return;
+    const list = (d.results && d.results.length) ? d.results : first.results;
+    const m = list[Math.floor(Math.random() * list.length)];
+    let ticks = 0;
+    const total = 12;
+    const spin = () => {
+      if (ps !== pickSeq) return;
+      ticks++;
+      if (ticks < total) {
+        titleEl.textContent = list[Math.floor(Math.random() * list.length)].title;
+        setTimeout(spin, 35 + ticks * 14);
+      } else showDbPick(m);
+    };
+    spin();
+  } catch (e) {
+    titleEl.classList.remove("rolling");
+    titleEl.textContent = "database unreachable — try again";
+  }
+}
+
+function setMode(m2) {
+  mode = m2;
+  ++pickSeq; ++enrichSeq; // kill any in-flight spin/enrichment from the other mode
+  document.getElementById("modeLists").classList.toggle("on", mode === "lists");
+  document.getElementById("modeDb").classList.toggle("on", mode === "db");
+  document.getElementById("srcPanel").style.display = mode === "lists" ? "" : "none";
+  document.getElementById("vibeHint").textContent = mode === "db"
+    ? "one at a time · approximate — mapped to genres & keywords" : "pick one or more";
+  document.getElementById("streamOnly").style.display = mode === "db" ? "" : "none";
+  document.getElementById("ratingLabel").textContent = mode === "db" ? "Min TMDB rating" : "Min Letterboxd rating";
+  document.getElementById("searchLabel").textContent = mode === "db" ? "Search the whole database" : "Title, director or country";
+  document.getElementById("search").placeholder = mode === "db" ? "e.g. Snatch, Oppenheimer, Cidade de Deus…" : "e.g. Kurosawa, Brazil, Wilder…";
+  document.getElementById("search").value = mode === "db" ? db.query : state.search;
+  document.getElementById("grid").classList.toggle("posters", mode === "db");
+  const r = document.getElementById("rating");
+  if (mode === "db") { r.min = 5.0; r.max = 8.5; r.value = db.minRating || 5.0; }
+  else { r.min = 3.0; r.max = 4.6; r.value = state.minRating; }
+  document.getElementById("runtime").value = mode === "db" ? db.maxRuntime : state.maxRuntime;
+  updateRatingVal(); updateRuntimeVal();
+  resultEl.classList.remove("show");
+  document.getElementById("history").innerHTML = "";
+  rebuildChips();
+  refresh();
+}
+
+// ---------------- pick ----------------
+const resultEl = document.getElementById("result");
+const titleEl = document.getElementById("rTitle");
+
+function pickRandom() {
+  const p = pool().filter(e => e.film.id !== lastPickId);
+  const src = p.length ? p : pool();
+  if (!src.length) return;
+  const ps = ++pickSeq;
+  const chosen = src[Math.floor(Math.random() * src.length)];
+  resultEl.classList.add("show");
+  titleEl.classList.add("rolling");
+  const all = pool();
+  let ticks = 0;
+  const total = 14;
+  const spin = () => {
+    if (ps !== pickSeq) return;
+    ticks++;
+    if (ticks < total) {
+      titleEl.textContent = all[Math.floor(Math.random() * all.length)].film.title;
+      setTimeout(spin, 35 + ticks * 14);
+    } else {
+      titleEl.classList.remove("rolling");
+      showFilm(chosen);
+    }
+  };
+  spin();
+}
+
+function showFilm(entry) {
+  const f = entry.film;
+  lastPickId = f.id;
+  clearEnrichment();
+  document.getElementById("rRatingSrc").textContent = "Letterboxd";
+  const vibeEl = document.getElementById("rVibe");
+  vibeEl.textContent = f.vibe ? f.vibe + " " + (VIBE_EMOJI[f.vibe] || "") : "Imported pick";
+  titleEl.textContent = f.title;
+  document.getElementById("rSub").textContent =
+    (f.year || "year unknown") + (f.director ? " · directed by " + f.director : "");
+  const srcsEl = document.getElementById("rSrcs");
+  srcsEl.innerHTML = activeSources().length > 1
+    ? entry.srcs.map(s => '<span class="tag">' + esc(s) + "</span>").join("") : "";
+  document.getElementById("rRating").textContent = f.rating ? "★ " + f.rating.toFixed(2) : "—";
+  document.getElementById("rRuntime").textContent = f.runtime ? fmtRuntime(f.runtime) : "—";
+  document.getElementById("rCountry").textContent = f.country || "—";
+  document.getElementById("rGenres").textContent = f.genres ? f.genres.join(" · ") : "no details yet — the database version will fill these in";
+  document.getElementById("lbLink").href = lbFilmUrl(f);
+  document.getElementById("searchFallback").href = lbSearchUrl(f);
+  historyPicks.unshift(f.title);
+  historyPicks = historyPicks.slice(0, 5);
+  document.getElementById("history").innerHTML = historyPicks.length > 1
+    ? "recent rolls: <span>" + historyPicks.slice(1).map(esc).join(" · ") + "</span>" : "";
+  enrichListPick(f);
+}
+
+document.getElementById("pickBtn").onclick = () => mode === "db" ? dbPickRandom() : pickRandom();
+document.getElementById("rerollBtn").onclick = () => mode === "db" ? dbPickRandom() : pickRandom();
+document.getElementById("notTonightBtn").onclick = () => {
+  if (mode === "db") { dbPickRandom(); return; }
+  if (lastPickId !== null) { state.hidden.add(lastPickId); refresh(); pickRandom(); }
+};
+
+// ---------------- browse ----------------
+function renderGrid() {
+  const p = pool().slice().sort((a, b) => (b.film.rating || 0) - (a.film.rating || 0));
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  document.getElementById("browseCnt").textContent = p.length + " of " + combinedFilms().length;
+  if (!p.length) {
+    grid.innerHTML = '<div class="empty">Nothing matches — <span class="fix">' + loosenHint() + "</span></div>";
+    return;
+  }
+  p.slice(0, browseLimit).forEach(e => {
+    const f = e.film;
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML =
+      '<div class="c-title">' + esc(f.title) + (f.year ? ' <span class="yr">(' + f.year + ")</span>" : "") + "</div>" +
+      '<div class="c-sub">' + (f.director ? esc(f.director) + " · " + esc(f.country || "") : '<span class="c-nometa">imported — details pending</span>') + "</div>" +
+      '<div class="c-foot"><span>' + (f.genres ? esc(f.genres.join(", ")) + " · " + fmtRuntime(f.runtime) : "&nbsp;") + "</span>" +
+      (f.rating ? '<span class="rt">★ ' + f.rating.toFixed(2) + "</span>" : "") + "</div>";
+    c.onclick = () => { resultEl.classList.add("show"); showFilm(e); window.scrollTo({ top: document.getElementById("pickBtn").offsetTop - 80, behavior: "smooth" }); };
+    grid.appendChild(c);
+  });
+  if (p.length > browseLimit) {
+    const more = document.createElement("div");
+    more.className = "showmore";
+    const b = document.createElement("button");
+    b.className = "btn2";
+    b.textContent = "Show all " + p.length;
+    b.onclick = () => { browseLimit = 9999; renderGrid(); };
+    more.appendChild(b);
+    grid.appendChild(more);
+  }
+}
+
+function loosenHint() {
+  if (state.vibes.size && state.genres.size) return "try dropping either the vibe or the genre filter";
+  if (state.minRating > 3.0 && (state.vibes.size || state.genres.size)) return "try lowering the minimum rating";
+  if (state.maxRuntime < 360 && state.decades.size) return "try relaxing runtime or decade";
+  if (srcMode === "all") return 'try switching back to "on any list"';
+  return "loosen a filter or two";
+}
+
+// ---------------- refresh ----------------
+function refresh() {
+  if (mode === "db") { refreshDb(); return; }
+  const n = pool().length;
+  const pc = document.getElementById("poolCount");
+  pc.innerHTML = "<b>" + n + "</b> film" + (n === 1 ? "" : "s") + " match your mood"
+    + (state.hidden.size ? " · " + state.hidden.size + " hidden tonight" : "")
+    + (hiddenByMeta ? ' <span class="warn">· ' + hiddenByMeta + " imported film" + (hiddenByMeta === 1 ? "" : "s") + " skipped (no details yet)</span>" : "");
+  pc.classList.toggle("zero", n === 0);
+  document.getElementById("pickBtn").disabled = n === 0;
+  browseLimit = 24;
+  renderGrid();
+}
+
+// ---------------- init ----------------
+document.getElementById("modeLists").onclick = () => { if (mode !== "lists") setMode("lists"); };
+document.getElementById("modeDb").onclick = () => { if (mode !== "db") setMode("db"); };
+
+const countrySel = document.getElementById("country");
+COUNTRIES.forEach(([code, label]) => {
+  const o = document.createElement("option");
+  o.value = code; o.textContent = label;
+  countrySel.appendChild(o);
+});
+countrySel.value = db.country;
+countrySel.onchange = () => {
+  db.country = countrySel.value;
+  if (lastWp) renderProviders(lastWp);
+  if (mode === "db" && db.streamOnly) refresh();
+};
+
+document.getElementById("streamOnly").onclick = e => {
+  db.streamOnly = !db.streamOnly;
+  e.target.classList.toggle("on", db.streamOnly);
+  refresh();
+};
+
+renderSources();
+rebuildChips();
+refresh();
+</script>
+</body>
+</html>
