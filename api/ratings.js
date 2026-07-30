@@ -32,7 +32,8 @@ async function sbFetch(path, opts = {}) {
     },
   });
   if (!r.ok) throw new Error("supabase " + r.status + " " + (await r.text()).slice(0, 200));
-  return r.status === 204 ? null : r.json();
+  const text = await r.text();
+  return text ? JSON.parse(text) : null; // 201/204 with empty body (return=minimal) is success
 }
 
 async function resolveFilm(t, y) {
