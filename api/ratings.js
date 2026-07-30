@@ -11,7 +11,7 @@
 // Env vars (Vercel → Settings → Environment Variables):
 //   SUPABASE_URL, SUPABASE_SECRET_KEY, OMDB_KEY, (optional) TMDB_KEY
 
-const MISS_BUDGET = 20;
+const MISS_BUDGET = 12; // resolved in parallel — keeps each call well under the function time limit
 
 function norm(s) {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -107,12 +107,8 @@ module.exports = async (req, res) => {
 
   const misses = films.filter(f => !rows[keyOf(f.t, f.y)]);
   const todo = misses.slice(0, MISS_BUDGET);
-  const resolved = [];
-  for (const f of todo) {
-    const row = await resolveFilm(f.t, f.y);
-    rows[row.key] = row;
-    resolved.push(row);
-  }
+  const resolved = await Promise.all(todo.map(f => resolveFilm(f.t, f.y)));
+  resolved.forEach(row => { rows[row.key] = row; });
   if (resolved.length) {
     await sbFetch("/ratings?on_conflict=key", {
       method: "POST",

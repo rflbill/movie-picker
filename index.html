@@ -1430,16 +1430,27 @@ async function ensureListRatings() {
   const seq = ++ratingsFetchSeq;
   ratingsApiState = "loading"; updateRateHint();
   try {
-    let remaining = films, rounds = 0;
-    while (remaining.length && rounds < 12) {
+    let remaining = films, rounds = 0, failures = 0;
+    while (remaining.length && rounds < 50) {
       rounds++;
+      const hintEl = document.getElementById("rateHint");
+      if (mode === "lists") hintEl.textContent = "fetching scores… " + remaining.length + " film" + (remaining.length === 1 ? "" : "s") + " to go (one-time — cached forever after)";
       const batch = remaining.slice(0, 60);
-      const r = await fetch("/api/ratings", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ films: batch.map(f => ({ t: f.title, y: f.year })) }),
-      });
-      if (!r.ok) throw new Error("ratings api " + r.status);
-      const d = await r.json();
+      let d = null;
+      try {
+        const r = await fetch("/api/ratings", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ films: batch.map(f => ({ t: f.title, y: f.year })) }),
+        });
+        if (!r.ok) throw new Error("ratings api " + r.status);
+        d = await r.json();
+        failures = 0;
+      } catch (err) {
+        failures++;
+        if (failures >= 3) throw err; // three strikes in a row → server really is down
+        await new Promise(ok => setTimeout(ok, 1200));
+        continue; // retry the same batch
+      }
       if (seq !== ratingsFetchSeq) return;
       batch.forEach(f => {
         const row = d.rows && d.rows[keyOf(f.title, f.year)];
