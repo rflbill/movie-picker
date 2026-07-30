@@ -87,6 +87,29 @@ module.exports = async (req, res) => {
         out.supabase = "ERROR: " + String(e.message).slice(0, 200);
       }
     }
+    if (req.url && req.url.includes("selftest")) {
+      // run the exact POST pipeline on one film and report every step
+      const st = {};
+      try {
+        const t = "Fight Club", y = 1999;
+        const k = keyOf(t, y);
+        st.key = k;
+        const inList = '("' + k + '")';
+        const cached = await sbFetch("/ratings?select=*&key=in." + encodeURIComponent(inList));
+        st.lookup = "ok, " + cached.length + " cached";
+        const row = await resolveFilm(t, y);
+        st.resolved = { tmdb_id: row.tmdb_id, imdb_id: row.imdb_id, tmdb: row.tmdb, imdb: row.imdb, meta: row.meta, rt: row.rt };
+        await sbFetch("/ratings?on_conflict=key", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify([row]),
+        });
+        st.upsert = "ok";
+      } catch (e) {
+        st.error = String(e.message).slice(0, 300);
+      }
+      out.selftest = st;
+    }
     return res.status(200).json(out);
   }
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
