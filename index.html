@@ -3,7 +3,7 @@
 {
   "name": "Leo Movie Picker",
   "schemaVersion": 1,
-  "description": "Movie-night randomizer, v0.3 tier-2: Leo's 249-film watchlist + friends' lists (CSV/paste) + the whole TMDB database (~1M films) with posters, overviews and streaming availability by country (JustWatch data via TMDB). Filter by vibe/genre/decade/runtime/rating, roll a random pick.",
+  "description": "Movie-night randomizer, v0.7: whole TMDB database (default tab) + search & explore (films, directors, actors, filmographies, add-to-picks) + own/friends' lists (CSV/paste). Vibes, genres, streaming by country, all-source scores with blended rating and critics-vs-crowd tags.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -250,14 +250,38 @@
 
   /* ---------- database mode ---------- */
   .modebar { text-align: center; margin-bottom: 16px; }
-  .modegrid { display: inline-grid; grid-template-columns: auto auto; row-gap: 6px; }
+  .modegrid { display: inline-grid; grid-template-columns: auto auto auto; row-gap: 6px; }
   .modegrid button {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
     font-size: 13.5px; padding: 8px 22px; cursor: pointer; transition: all .12s; font-family: inherit;
   }
   .modegrid button:hover { color: var(--cream); }
   .modegrid #modeDb { border-radius: 999px 0 0 999px; border-right: none; }
+  .modegrid #modeSearch { border-right: none; }
   .modegrid #modeLists { border-radius: 0 999px 999px 0; }
+  @media (max-width: 560px) {
+    .modegrid { grid-template-columns: 1fr; row-gap: 4px; }
+    .modegrid button { border-radius: 999px !important; border-right: 1px solid var(--line) !important; }
+    .modegrid .mhint { display: none; }
+  }
+
+  /* search & explore */
+  .pchip {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    border-radius: 999px; padding: 4px 14px 4px 4px; font-size: 12.5px; cursor: pointer; transition: all .12s;
+  }
+  .pchip img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--line); }
+  .pchip .role { color: var(--muted-2); font-size: 11px; }
+  .pchip:hover, .pchip.on { border-color: var(--blue-dim); color: var(--cream); }
+  .pchip.on { background: rgba(91,157,255,.10); }
+
+  .r-scores .dtag {
+    display: inline-block; border-radius: 999px; padding: 2px 10px; margin-left: 8px;
+    font-size: 11px; cursor: help;
+  }
+  .r-scores .dtag.critics { color: var(--pink); border: 1px solid var(--pink-dim); }
+  .r-scores .dtag.crowd { color: var(--blue); border: 1px solid var(--blue-deep); }
   .modegrid button.on { background: var(--blue); border-color: var(--blue); color: #0a1224; font-weight: 600; }
   .modegrid .mhint { font-size: 11px; color: var(--muted-2); text-align: center; padding: 0 8px; }
 
@@ -317,11 +341,22 @@
 
   <div class="modebar">
     <div class="modegrid">
-      <button id="modeDb">🌍 Whole database</button>
-      <button id="modeLists" class="on">🎬 Our lists</button>
+      <button id="modeDb" class="on">🌍 Whole database</button>
+      <button id="modeSearch">🔍 Search &amp; explore</button>
+      <button id="modeLists">🎬 Our lists</button>
       <span class="mhint">every film out there</span>
+      <span class="mhint">look up films &amp; people</span>
       <span class="mhint">the lists you bring</span>
     </div>
+  </div>
+
+  <div class="panel" id="searchPanel" style="display:none">
+    <div class="frow" style="margin-bottom:10px">
+      <div class="flabel">Search films &amp; people <span class="hint">titles, directors, actors — check a film out, add it to your picks</span></div>
+      <input type="text" id="searchQ" placeholder="e.g. Under the Skin, Denis Villeneuve, Tilda Swinton…">
+    </div>
+    <div class="chips" id="peopleResults"></div>
+    <div class="importmsg" id="searchMsg"></div>
   </div>
 
   <div class="panel" id="srcPanel">
@@ -339,7 +374,7 @@
     <div class="importmsg" id="importMsg"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="filterPanel">
     <div class="frow" id="vibeRow">
       <div class="flabel">Tonight's vibe <span class="hint" id="vibeHint">pick one or more</span></div>
       <div class="chips" id="vibeChips"></div>
@@ -381,7 +416,7 @@
   </div>
 
   <div class="pickzone">
-    <div class="pickrow">
+    <div class="pickrow" id="pickRow">
       <svg class="filmstrip l" width="170" height="38" viewBox="0 0 170 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="0" y="2" width="170" height="34" rx="4" fill="#141a28" stroke="#263048"/>
         <g fill="#0a0d15">
@@ -422,6 +457,7 @@
       <div class="r-actions">
         <button class="btn2 accent" id="rerollBtn">🎲 Roll again</button>
         <button class="btn2" id="notTonightBtn">Not tonight (hide it)</button>
+        <button class="btn2" id="addPickBtn" style="display:none">＋ Add to My picks</button>
         <a class="btn2" id="lbLink" href="#" target="_blank" rel="noopener">Open on Letterboxd ↗</a>
       </div>
       <div style="margin-top:10px; font-size:11px;">
@@ -432,14 +468,14 @@
   </div>
 
   <div class="browse-head">
-    <h2>Matching films</h2>
+    <h2 id="browseTitle">Matching films</h2>
     <span class="cnt" id="browseCnt"></span>
   </div>
   <div class="grid" id="grid"></div>
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.6 tier-2</span> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.7</span> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -821,7 +857,7 @@ function renderSources() {
   srcChipsEl.appendChild(up);
 
   const pa = document.createElement("button");
-  pa.className = "addbtn pink"; pa.textContent = "+ Paste a list";
+  pa.className = "addbtn"; pa.textContent = "+ Paste a list";
   pa.onclick = () => document.getElementById("pastebox").classList.toggle("show");
   srcChipsEl.appendChild(pa);
 
@@ -1167,16 +1203,7 @@ function renderDbGrid(items, append) {
     grid.innerHTML = '<div class="empty">Nothing matches — <span class="fix">' + dbLoosenHint() + "</span></div>";
     return;
   }
-  items.forEach(m => {
-    const c = document.createElement("div");
-    c.className = "pcard";
-    c.innerHTML = (m.poster_path ? '<img loading="lazy" src="' + TMDB_IMG + "w342" + m.poster_path + '" alt="">' : "<img alt=''>")
-      + '<div class="pc-body"><div class="pc-title">' + esc(m.title) + "</div>"
-      + '<div class="pc-sub"><span>' + (m.release_date ? m.release_date.slice(0, 4) : "—") + "</span>"
-      + (m.vote_average ? '<span class="rt">★ ' + m.vote_average.toFixed(1) + "</span>" : "") + "</div></div>";
-    c.onclick = () => { resultEl.classList.add("show"); showDbPick(m); window.scrollTo({ top: document.getElementById("pickBtn").offsetTop - 80, behavior: "smooth" }); };
-    grid.appendChild(c);
-  });
+  items.forEach(m => grid.appendChild(moviePcard(m)));
   if (dbGridPage < db.pages && dbGridPage < 10) {
     const more = document.createElement("div");
     more.className = "showmore";
@@ -1187,6 +1214,17 @@ function renderDbGrid(items, append) {
     grid.appendChild(more);
   }
 }
+function moviePcard(m) {
+  const c = document.createElement("div");
+  c.className = "pcard";
+  c.innerHTML = (m.poster_path ? '<img loading="lazy" src="' + TMDB_IMG + "w342" + m.poster_path + '" alt="">' : "<img alt=''>")
+    + '<div class="pc-body"><div class="pc-title">' + esc(m.title) + "</div>"
+    + '<div class="pc-sub"><span>' + (m.release_date ? m.release_date.slice(0, 4) : "—") + "</span>"
+    + (m.vote_average ? '<span class="rt">★ ' + m.vote_average.toFixed(1) + "</span>" : "") + "</div></div>";
+  c.onclick = () => { resultEl.classList.add("show"); showDbPick(m); window.scrollTo({ top: resultEl.offsetTop - 80, behavior: "smooth" }); };
+  return c;
+}
+
 function dbLoosenHint() {
   const v = VIBE_DB[db.vibe];
   if (v && v.extra && v.extra["with_runtime.gte"] && db.maxRuntime < v.extra["with_runtime.gte"] + 20)
@@ -1241,7 +1279,29 @@ function renderScores(base, omdb) {
   }
   if (!out.length || parts.length < 2) { el.innerHTML = out.join(" · "); return; }
   const blend = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
-  el.innerHTML = out.join(" · ") + ' · <span class="bl">blended ★ ' + blend + "/100</span>";
+  el.innerHTML = out.join(" · ") + ' · <span class="bl">blended ★ ' + blend + "/100</span>" + divergenceTag(base, omdb);
+}
+
+// Critics vs crowd: Metacritic + RT aggregate professional critics (demanding, craft-focused);
+// IMDb/TMDB/Letterboxd are popular votes (how it *feels*). A big gap says something real.
+function divergenceTag(base, omdb) {
+  if (!omdb) return "";
+  const critics = [];
+  const mc = numOf(omdb.Metascore);
+  if (mc !== null) critics.push(mc);
+  const rt = (omdb.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
+  const rtv = rt ? numOf(rt.Value) : null;
+  if (rtv !== null) critics.push(rtv);
+  const crowd = [];
+  const imdb = numOf(omdb.imdbRating);
+  if (imdb !== null) crowd.push(imdb * 10);
+  if (base.tmdb) crowd.push(base.tmdb * 10);
+  if (base.letterboxd) crowd.push(base.letterboxd * 20);
+  if (!critics.length || !crowd.length) return "";
+  const d = critics.reduce((a, b) => a + b, 0) / critics.length - crowd.reduce((a, b) => a + b, 0) / crowd.length;
+  if (d >= 12) return ' <span class="dtag critics" title="Professional critics (Metacritic/RT) rate this well above general audiences. Usually a sign of something demanding, arty or divisive — often a deep one that asks more of you than it hands over.">🎭 critics’ darling</span>';
+  if (d <= -12) return ' <span class="dtag crowd" title="Audiences rate this well above professional critics. Fun first, prestige later — a great time that critics found less remarkable.">🍿 crowd-pleaser</span>';
+  return "";
 }
 function setPoster(path) {
   const el = document.getElementById("rPoster");
@@ -1306,6 +1366,11 @@ async function enrichListPick(f) {
 
 async function showDbPick(m) {
   lastPickId = null;
+  currentDbMovie = m; currentDbDet = null;
+  const btn = document.getElementById("addPickBtn");
+  btn.style.display = "";
+  btn.textContent = picksSource && sources.includes(picksSource) && picksSource.films.some(f => keyOf(f.title, f.year) === keyOf(m.title, m.release_date ? +m.release_date.slice(0, 4) : null))
+    ? "✓ Already in My picks" : "＋ Add to My picks";
   const seq = ++enrichSeq;
   clearEnrichment();
   document.getElementById("rVibe").textContent = db.vibe && !db.query.trim()
@@ -1324,13 +1389,16 @@ async function showDbPick(m) {
   document.getElementById("searchFallback").href = lbSearchUrl(pf);
   setPoster(m.poster_path);
   setOverview(m.overview);
-  historyPicks.unshift(m.title);
-  historyPicks = historyPicks.slice(0, 5);
-  document.getElementById("history").innerHTML = historyPicks.length > 1
-    ? "recent rolls: <span>" + historyPicks.slice(1).map(esc).join(" · ") + "</span>" : "";
+  if (mode !== "search") {
+    historyPicks.unshift(m.title);
+    historyPicks = historyPicks.slice(0, 5);
+    document.getElementById("history").innerHTML = historyPicks.length > 1
+      ? "recent rolls: <span>" + historyPicks.slice(1).map(esc).join(" · ") + "</span>" : "";
+  }
   try {
     const det = await tmdbDetails(m.id, "credits,watch/providers");
     if (seq !== enrichSeq) return;
+    currentDbDet = det;
     document.getElementById("rRuntime").textContent = det.runtime ? fmtRuntime(det.runtime) : "—";
     document.getElementById("rCountry").textContent = det.production_countries && det.production_countries[0] ? det.production_countries[0].name : "—";
     const dir = det.credits && det.credits.crew ? det.credits.crew.filter(c => c.job === "Director").map(c => c.name).join(", ") : "";
@@ -1393,25 +1461,155 @@ function setMode(m2) {
   ++pickSeq; ++enrichSeq; // kill any in-flight spin/enrichment from the other mode
   document.getElementById("modeLists").classList.toggle("on", mode === "lists");
   document.getElementById("modeDb").classList.toggle("on", mode === "db");
+  document.getElementById("modeSearch").classList.toggle("on", mode === "search");
   document.getElementById("srcPanel").style.display = mode === "lists" ? "" : "none";
-  document.getElementById("vibeHint").textContent = mode === "db"
-    ? "one at a time · approximate — mapped to genres & keywords" : "pick one or more";
-  document.getElementById("streamOnly").style.display = mode === "db" ? "" : "none";
-  document.getElementById("ratingLabel").textContent = mode === "db" ? "Min TMDB rating" : "Min Letterboxd rating";
-  document.getElementById("searchLabel").textContent = mode === "db" ? "Search the whole database" : "Title, director or country";
-  document.getElementById("search").placeholder = mode === "db" ? "e.g. Snatch, Oppenheimer, Cidade de Deus…" : "e.g. Kurosawa, Brazil, Wilder…";
-  document.getElementById("search").value = mode === "db" ? db.query : state.search;
-  document.getElementById("grid").classList.toggle("posters", mode === "db");
-  const r = document.getElementById("rating");
-  if (mode === "db") { r.min = 5.0; r.max = 8.5; r.value = db.minRating || 5.0; }
-  else { r.min = 3.0; r.max = 4.6; r.value = state.minRating; }
-  document.getElementById("runtime").value = mode === "db" ? db.maxRuntime : state.maxRuntime;
-  updateRatingVal(); updateRuntimeVal();
+  document.getElementById("filterPanel").style.display = mode === "search" ? "none" : "";
+  document.getElementById("searchPanel").style.display = mode === "search" ? "" : "none";
+  document.getElementById("pickRow").style.display = mode === "search" ? "none" : "";
+  document.getElementById("rerollBtn").style.display = mode === "search" ? "none" : "";
+  document.getElementById("notTonightBtn").style.display = mode === "search" ? "none" : "";
+  document.getElementById("browseTitle").textContent = mode === "search" ? "Results" : "Matching films";
+  document.getElementById("grid").classList.toggle("posters", mode !== "lists");
+  if (mode !== "search") {
+    document.getElementById("vibeHint").textContent = mode === "db"
+      ? "one at a time · approximate — mapped to genres & keywords" : "pick one or more";
+    document.getElementById("streamOnly").style.display = mode === "db" ? "" : "none";
+    document.getElementById("ratingLabel").textContent = mode === "db" ? "Min TMDB rating" : "Min Letterboxd rating";
+    document.getElementById("searchLabel").textContent = mode === "db" ? "Search the whole database" : "Title, director or country";
+    document.getElementById("search").placeholder = mode === "db" ? "e.g. Snatch, Oppenheimer, Cidade de Deus…" : "e.g. Kurosawa, Brazil, Wilder…";
+    document.getElementById("search").value = mode === "db" ? db.query : state.search;
+    const r = document.getElementById("rating");
+    if (mode === "db") { r.min = 5.0; r.max = 8.5; r.value = db.minRating || 5.0; }
+    else { r.min = 3.0; r.max = 4.6; r.value = state.minRating; }
+    document.getElementById("runtime").value = mode === "db" ? db.maxRuntime : state.maxRuntime;
+    updateRatingVal(); updateRuntimeVal();
+  }
   resultEl.classList.remove("show");
   document.getElementById("history").innerHTML = "";
   rebuildChips();
+  if (mode === "search") renderSearchResults();
   refresh();
 }
+
+// ---------------- search & explore mode ----------------
+const sx = { q: "", movies: [], people: [], person: null, seq: 0 };
+
+let sxTimer = null;
+document.getElementById("searchQ").oninput = e => {
+  sx.q = e.target.value;
+  sx.person = null;
+  clearTimeout(sxTimer);
+  sxTimer = setTimeout(doExploreSearch, 350);
+};
+
+async function doExploreSearch() {
+  const seq = ++sx.seq;
+  const q = sx.q.trim();
+  if (!q) { sx.movies = []; sx.people = []; renderSearchResults(); return; }
+  document.getElementById("searchMsg").textContent = "searching…";
+  try {
+    const d = await tmdb("/search/multi", { query: q, include_adult: false });
+    if (seq !== sx.seq) return;
+    const res = d.results || [];
+    sx.movies = res.filter(r => r.media_type === "movie").slice(0, 20);
+    sx.people = res.filter(r => r.media_type === "person").slice(0, 5);
+    renderSearchResults();
+  } catch (e) {
+    if (seq !== sx.seq) return;
+    document.getElementById("searchMsg").textContent = "search unreachable — try again";
+  }
+}
+
+async function openPerson(p) {
+  const seq = ++sx.seq;
+  sx.person = p;
+  renderPeople();
+  document.getElementById("searchMsg").textContent = "loading " + p.name + "'s films…";
+  try {
+    const d = await tmdb("/person/" + p.id + "/movie_credits", {});
+    if (seq !== sx.seq) return;
+    const seen = new Set(), films = [];
+    [...(d.crew || []).filter(c => c.job === "Director"), ...(d.cast || [])].forEach(m => {
+      if (!seen.has(m.id)) { seen.add(m.id); films.push(m); }
+    });
+    films.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+    sx.movies = films.slice(0, 40);
+    renderSearchResults(p.name);
+  } catch (e) {
+    if (seq !== sx.seq) return;
+    document.getElementById("searchMsg").textContent = "couldn't load filmography — try again";
+  }
+}
+
+function renderPeople() {
+  const el = document.getElementById("peopleResults");
+  el.innerHTML = "";
+  sx.people.forEach(p => {
+    const c = document.createElement("span");
+    c.className = "pchip" + (sx.person && sx.person.id === p.id ? " on" : "");
+    c.innerHTML = (p.profile_path ? '<img src="' + TMDB_IMG + "w185" + p.profile_path + '" alt="">' : '<img alt="">')
+      + esc(p.name) + ' <span class="role">' + (p.known_for_department === "Directing" ? "directing" : p.known_for_department === "Acting" ? "acting" : esc((p.known_for_department || "").toLowerCase())) + "</span>";
+    c.onclick = () => openPerson(p);
+    el.appendChild(c);
+  });
+}
+
+function renderSearchResults(personName) {
+  if (mode !== "search") return;
+  renderPeople();
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  document.getElementById("browseTitle").textContent = personName ? "Films with " + personName : "Results";
+  document.getElementById("browseCnt").textContent = sx.movies.length ? sx.movies.length + " films · click one to inspect" : "";
+  document.getElementById("searchMsg").textContent = "";
+  if (!sx.q.trim()) {
+    grid.innerHTML = '<div class="empty">Type a film, a director or an actor above — check it out, then add it to <span class="fix">My picks</span> and roll from your list later.</div>';
+    return;
+  }
+  if (!sx.movies.length && !sx.people.length) {
+    grid.innerHTML = '<div class="empty">Nothing found for that — check the spelling?</div>';
+    return;
+  }
+  sx.movies.forEach(m => grid.appendChild(moviePcard(m)));
+}
+
+// ---------------- add to My picks ----------------
+let currentDbMovie = null, currentDbDet = null;
+let picksSource = null;
+
+function genreFullName(id) { return id === 878 ? "Science Fiction" : GENRE_NAME.get(id); }
+
+function addCurrentToPicks() {
+  const m = currentDbMovie;
+  if (!m) return;
+  const f = getOrCreate(m.title, m.release_date ? +m.release_date.slice(0, 4) : null);
+  if (!f.meta) {
+    const det = currentDbDet && currentDbDet.id === m.id ? currentDbDet : null;
+    f.genres = det && det.genres ? det.genres.map(g => g.name) : (m.genre_ids || []).map(genreFullName).filter(Boolean);
+    if (det) {
+      f.runtime = det.runtime || null;
+      f.country = det.production_countries && det.production_countries[0] ? det.production_countries[0].name : null;
+      const dir = det.credits && det.credits.crew ? det.credits.crew.filter(c => c.job === "Director").map(c => c.name).join(", ") : "";
+      if (dir) f.director = dir;
+    }
+    if (!f.genres.length) f.genres = null;
+    f.decade = f.year ? Math.floor(f.year / 10) * 10 : null;
+  }
+  if (!picksSource || !sources.includes(picksSource)) {
+    picksSource = { id: "picks", name: "My picks", films: [], active: true, removable: true };
+    sources.push(picksSource);
+  }
+  const btn = document.getElementById("addPickBtn");
+  if (picksSource.films.includes(f)) {
+    btn.textContent = "✓ Already in My picks";
+  } else {
+    picksSource.films.push(f);
+    btn.textContent = "✓ Added to My picks (" + picksSource.films.length + ")";
+  }
+  renderSources();
+}
+
+document.getElementById("addPickBtn").onclick = addCurrentToPicks;
 
 // ---------------- pick ----------------
 const resultEl = document.getElementById("result");
@@ -1445,6 +1643,8 @@ function pickRandom() {
 function showFilm(entry) {
   const f = entry.film;
   lastPickId = f.id;
+  currentDbMovie = null; currentDbDet = null;
+  document.getElementById("addPickBtn").style.display = "none";
   clearEnrichment();
   document.getElementById("rRatingSrc").textContent = "Letterboxd";
   const vibeEl = document.getElementById("rVibe");
@@ -1519,6 +1719,7 @@ function loosenHint() {
 
 // ---------------- refresh ----------------
 function refresh() {
+  if (mode === "search") return; // search grid is driven by its own input
   if (mode === "db") { refreshDb(); return; }
   const n = pool().length;
   const pc = document.getElementById("poolCount");
@@ -1534,6 +1735,7 @@ function refresh() {
 // ---------------- init ----------------
 document.getElementById("modeLists").onclick = () => { if (mode !== "lists") setMode("lists"); };
 document.getElementById("modeDb").onclick = () => { if (mode !== "db") setMode("db"); };
+document.getElementById("modeSearch").onclick = () => { if (mode !== "search") setMode("search"); };
 
 const countrySel = document.getElementById("country");
 COUNTRIES.forEach(([code, label]) => {
@@ -1555,8 +1757,7 @@ document.getElementById("streamOnly").onclick = e => {
 };
 
 renderSources();
-rebuildChips();
-refresh();
+setMode("db"); // kick off in Whole database (Leo's call, v0.7) — setMode runs rebuildChips + refresh
 </script>
 </body>
 </html>
