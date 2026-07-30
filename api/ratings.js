@@ -70,6 +70,25 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method === "GET") {
+    // health check: reports config presence + a live Supabase probe (no secrets leaked)
+    const out = {
+      hasSupabaseUrl: !!process.env.SUPABASE_URL,
+      hasSupabaseKey: !!process.env.SUPABASE_SECRET_KEY,
+      hasOmdbKey: !!process.env.OMDB_KEY,
+      supabaseUrlLooksBare: !!process.env.SUPABASE_URL && !/rest\/v1/.test(process.env.SUPABASE_URL),
+      supabase: "not tested",
+    };
+    if (out.hasSupabaseUrl && out.hasSupabaseKey) {
+      try {
+        const rows = await sbFetch("/ratings?select=key&limit=1");
+        out.supabase = "ok (" + rows.length + " sample rows)";
+      } catch (e) {
+        out.supabase = "ERROR: " + String(e.message).slice(0, 200);
+      }
+    }
+    return res.status(200).json(out);
+  }
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY)
     return res.status(503).json({ error: "ratings cache not configured yet" });
