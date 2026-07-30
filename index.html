@@ -257,8 +257,8 @@
   }
   .modegrid button:hover { color: var(--cream); }
   .modegrid #modeDb { border-radius: 999px 0 0 999px; border-right: none; }
-  .modegrid #modeSearch { border-right: none; }
-  .modegrid #modeLists { border-radius: 0 999px 999px 0; }
+  .modegrid #modeLists { border-right: none; }
+  .modegrid #modeSearch { border-radius: 0 999px 999px 0; }
   @media (max-width: 560px) {
     .modegrid { grid-template-columns: 1fr; row-gap: 4px; }
     .modegrid button { border-radius: 999px !important; border-right: 1px solid var(--line) !important; }
@@ -310,9 +310,13 @@
   .r-where img { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line); }
   .r-where .jw { display: block; margin-top: 6px; font-size: 11px; color: var(--muted-2); }
   .r-where .jw a { color: var(--muted); }
-  .r-scores { font-size: 12.5px; color: var(--muted); margin: -8px 0 14px; }
+  .r-scores { font-size: 12.5px; color: var(--muted); margin: -4px 0 14px; line-height: 1.5; }
   .r-scores b { color: var(--cream); font-weight: 600; }
-  .r-scores .bl { color: var(--blue); font-weight: 600; }
+  .r-scores .rtrow { color: var(--muted-2); font-size: 12px; margin-top: 3px; }
+  .r-scores .blrow { margin-top: 7px; }
+  .r-scores .bl { color: var(--pink); font-weight: 700; font-size: 13.5px; }
+  .r-scores .dtag.classic { color: #e3c06c; border: 1px solid rgba(227,192,108,.45); }
+  .r-scores .dtag.plain { color: var(--muted); border: 1px solid var(--line); }
   .pcard {
     background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
     cursor: pointer; transition: border-color .12s;
@@ -342,11 +346,11 @@
   <div class="modebar">
     <div class="modegrid">
       <button id="modeDb" class="on">🌍 Whole database</button>
-      <button id="modeSearch">🔍 Search &amp; explore</button>
       <button id="modeLists">🎬 Our lists</button>
+      <button id="modeSearch">🔍 Search &amp; explore</button>
       <span class="mhint">every film out there</span>
-      <span class="mhint">look up films &amp; people</span>
       <span class="mhint">the lists you bring</span>
+      <span class="mhint">look up films &amp; people</span>
     </div>
   </div>
 
@@ -393,8 +397,12 @@
         <input type="range" id="runtime" min="80" max="360" step="5" value="360">
       </div>
       <div>
-        <div class="flabel"><span id="ratingLabel">Min Letterboxd rating</span> &nbsp;<span class="rangeval pink" id="ratingVal">any</span></div>
-        <input type="range" id="rating" min="3.0" max="4.6" step="0.1" value="3.0">
+        <div class="flabel"><span id="ratingLabel">Min rating</span> &nbsp;<span class="rangeval pink" id="ratingVal">any</span></div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="rateSrc" style="flex:none; max-width:47%;"></select>
+          <input type="range" id="rating" min="3.0" max="4.6" step="0.1" value="3.0">
+        </div>
+        <div class="flabel" style="margin-top:5px;"><span class="hint" id="rateHint"></span></div>
       </div>
       <div>
         <div class="flabel" id="searchLabel">Title, director or country</div>
@@ -448,7 +456,6 @@
       <div class="r-overview" id="rOverview"></div>
       <div class="r-where" id="rWhere"></div>
       <div class="r-meta" id="rMeta">
-        <div class="m"><b id="rRating" class="star"></b><span id="rRatingSrc">Letterboxd</span></div>
         <div class="m"><b id="rRuntime"></b>runtime</div>
         <div class="m"><b id="rCountry"></b>country</div>
       </div>
@@ -475,7 +482,7 @@
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.7</span> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.8</span> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -804,7 +811,7 @@ function combinedFilms() {
 // ---------------- state ----------------
 const state = {
   vibes: new Set(), genres: new Set(), decades: new Set(),
-  maxRuntime: 360, minRating: 3.0, search: "", hidden: new Set(),
+  maxRuntime: 360, rateSrc: "lb", minR: 0, search: "", hidden: new Set(),
 };
 let lastPickId = null;
 let pickSeq = 0;
@@ -826,7 +833,11 @@ function pool() {
     if (state.vibes.size) { if (!f.vibe) { hiddenByMeta++; return false; } if (!state.vibes.has(f.vibe)) return false; }
     if (state.genres.size) { if (!f.genres) { hiddenByMeta++; return false; } if (!f.genres.some(g => state.genres.has(g))) return false; }
     if (state.maxRuntime < 360) { if (!f.runtime) { hiddenByMeta++; return false; } if (f.runtime > state.maxRuntime) return false; }
-    if (state.minRating > 3.0 + 1e-9) { if (!f.rating) { hiddenByMeta++; return false; } if (f.rating < state.minRating - 1e-9) return false; }
+    if (state.minR > 0) {
+      const v = listScore(f, state.rateSrc);
+      if (v === null) { hiddenByMeta++; return false; }
+      if (v < state.minR - 1e-9) return false;
+    }
     return true;
   });
 }
@@ -1038,13 +1049,51 @@ function rebuildChips() {
 }
 
 // ---------------- inputs ----------------
+// One min-rating filter, six score sources. Slider range adapts to the source's native scale.
+const RATE_SRC = {
+  lb:    { label: "Letterboxd ★", min: 2.0, max: 4.6, step: 0.1, fmt: v => "★ " + v.toFixed(1) + "+" },
+  tmdb:  { label: "TMDB",         min: 5.0, max: 8.5, step: 0.1, fmt: v => v.toFixed(1) + "+" },
+  imdb:  { label: "IMDb",         min: 5.0, max: 8.8, step: 0.1, fmt: v => v.toFixed(1) + "+" },
+  meta:  { label: "Metacritic",   min: 40,  max: 95,  step: 1,   fmt: v => v + "+" },
+  rt:    { label: "Rotten 🍅",    min: 40,  max: 98,  step: 1,   fmt: v => v + "%+" },
+  blend: { label: "Blended ★",    min: 40,  max: 90,  step: 1,   fmt: v => "★ " + v + "+" },
+};
+function curFilt() { return mode === "db" ? db : state; }
+function listScore(f, src) {
+  if (src === "lb") return f.rating || null;
+  if (!f.ext) return null;
+  return f.ext[src] !== undefined && f.ext[src] !== null ? f.ext[src] : null;
+}
+function applyRateSrc() {
+  const flt = curFilt();
+  const cfg = RATE_SRC[flt.rateSrc];
+  const sel = document.getElementById("rateSrc");
+  if (sel.value !== flt.rateSrc) sel.value = flt.rateSrc;
+  const r = document.getElementById("rating");
+  r.min = cfg.min; r.max = cfg.max; r.step = cfg.step;
+  r.value = flt.minR || cfg.min;
+  updateRatingVal();
+  updateRateHint();
+}
+function updateRateHint() {
+  const el = document.getElementById("rateHint");
+  const flt = curFilt();
+  if (mode === "db" && flt.rateSrc !== "tmdb" && flt.minR > 0)
+    el.textContent = "count & grid follow the other filters — your min " + RATE_SRC[flt.rateSrc].label.replace(" ★", "") + " is enforced on the roll itself";
+  else if (mode === "lists" && flt.rateSrc !== "lb" && ratingsApiState === "down")
+    el.textContent = "the ratings server isn't live yet — films without fetched scores are skipped";
+  else if (mode === "lists" && flt.rateSrc !== "lb" && ratingsApiState === "loading")
+    el.textContent = "fetching " + RATE_SRC[flt.rateSrc].label.replace(" ★", "") + " scores for your films…";
+  else el.textContent = "";
+}
 function updateRuntimeVal() {
   const v = mode === "db" ? db.maxRuntime : state.maxRuntime;
   document.getElementById("runtimeVal").textContent = v >= 360 ? "any" : "≤ " + fmtRuntime(v);
 }
 function updateRatingVal() {
-  if (mode === "db") document.getElementById("ratingVal").textContent = db.minRating ? "★ " + db.minRating.toFixed(1) + "+" : "any";
-  else document.getElementById("ratingVal").textContent = state.minRating <= 3.0 ? "any" : "★ " + state.minRating.toFixed(1) + "+";
+  const flt = curFilt();
+  const cfg = RATE_SRC[flt.rateSrc];
+  document.getElementById("ratingVal").textContent = flt.minR > 0 ? cfg.fmt(flt.minR) : "any";
 }
 document.getElementById("runtime").oninput = e => {
   if (mode === "db") db.maxRuntime = +e.target.value; else state.maxRuntime = +e.target.value;
@@ -1052,9 +1101,20 @@ document.getElementById("runtime").oninput = e => {
   refresh();
 };
 document.getElementById("rating").oninput = e => {
-  if (mode === "db") { const v = +e.target.value; db.minRating = v <= 5.0 ? 0 : v; }
-  else state.minRating = +e.target.value;
+  const flt = curFilt();
+  const cfg = RATE_SRC[flt.rateSrc];
+  const v = +e.target.value;
+  flt.minR = v <= cfg.min + 1e-9 ? 0 : v;
   updateRatingVal();
+  updateRateHint();
+  refresh();
+};
+document.getElementById("rateSrc").onchange = e => {
+  const flt = curFilt();
+  flt.rateSrc = e.target.value;
+  flt.minR = 0;
+  applyRateSrc();
+  if (mode === "lists" && flt.rateSrc !== "lb") ensureListRatings();
   refresh();
 };
 document.getElementById("search").oninput = e => {
@@ -1063,17 +1123,15 @@ document.getElementById("search").oninput = e => {
 };
 document.getElementById("clearBtn").onclick = () => {
   if (mode === "db") {
-    db.vibe = null; db.genres.clear(); db.decades.clear(); db.minRating = 0; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
-    document.getElementById("rating").value = 5.0;
+    db.vibe = null; db.genres.clear(); db.decades.clear(); db.rateSrc = "tmdb"; db.minR = 0; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
     document.getElementById("streamOnly").classList.remove("on");
   } else {
     state.vibes.clear(); state.genres.clear(); state.decades.clear();
-    state.maxRuntime = 360; state.minRating = 3.0; state.search = "";
-    document.getElementById("rating").value = 3.0;
+    state.maxRuntime = 360; state.rateSrc = "lb"; state.minR = 0; state.search = "";
   }
   document.getElementById("runtime").value = 360;
   document.getElementById("search").value = "";
-  updateRuntimeVal(); updateRatingVal();
+  applyRateSrc(); updateRuntimeVal();
   document.querySelectorAll(".chip.on").forEach(c => { if (c.id !== "streamOnly" || mode !== "lists") c.classList.remove("on"); });
   rebuildChips();
   refresh();
@@ -1117,7 +1175,7 @@ const GENRES = [[28,"Action"],[12,"Adventure"],[16,"Animation"],[35,"Comedy"],[8
 const GENRE_NAME = new Map(GENRES);
 const COUNTRIES = [["BR","🇧🇷 Brazil"],["US","🇺🇸 United States"],["PT","🇵🇹 Portugal"],["AR","🇦🇷 Argentina"],["MX","🇲🇽 Mexico"],["CL","🇨🇱 Chile"],["CO","🇨🇴 Colombia"],["UY","🇺🇾 Uruguay"],["ES","🇪🇸 Spain"],["FR","🇫🇷 France"],["DE","🇩🇪 Germany"],["IT","🇮🇹 Italy"],["NL","🇳🇱 Netherlands"],["SE","🇸🇪 Sweden"],["GB","🇬🇧 United Kingdom"],["IE","🇮🇪 Ireland"],["PL","🇵🇱 Poland"],["JP","🇯🇵 Japan"],["KR","🇰🇷 South Korea"],["IN","🇮🇳 India"],["CA","🇨🇦 Canada"],["AU","🇦🇺 Australia"],["NZ","🇳🇿 New Zealand"],["TR","🇹🇷 Türkiye"],["ZA","🇿🇦 South Africa"]];
 
-const db = { vibe: null, genres: new Set(), decades: new Set(), minRating: 0, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
+const db = { vibe: null, genres: new Set(), decades: new Set(), rateSrc: "tmdb", minR: 0, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
 
 // Vibe → TMDB discover mapping. Approximate by design: a vibe becomes a genre
 // group (| = OR) that must match, minus excluded genres, plus optional keyword/runtime.
@@ -1154,7 +1212,7 @@ function discoverParams(forceDecade) {
   if (gGroups.length) p.with_genres = gGroups.join(","); // groups AND-ed, each group is an OR
   if (v && v.wo) p.without_genres = v.wo;
   if (v && v.kw) p.with_keywords = v.kw;
-  if (db.minRating > 0) p["vote_average.gte"] = db.minRating;
+  if (db.rateSrc === "tmdb" && db.minR > 0) p["vote_average.gte"] = db.minR;
   if (db.maxRuntime < 360) { p["with_runtime.lte"] = db.maxRuntime; p["with_runtime.gte"] = 40; }
   if (v && v.extra) Object.assign(p, v.extra);
   const decs = forceDecade !== undefined ? [forceDecade] : [...db.decades];
@@ -1231,7 +1289,7 @@ function dbLoosenHint() {
     return '"' + db.vibe + '" wants longer films — raise max runtime or drop the vibe';
   if (db.vibe && db.genres.size) return "the vibe and genre picks may contradict — try dropping one";
   if (db.streamOnly) return "try turning off streaming-only, or another country";
-  if (db.minRating >= 7.5) return "try lowering the minimum rating";
+  if (db.rateSrc === "tmdb" && db.minR >= 7.5) return "try lowering the minimum rating";
   if (db.maxRuntime < 100) return "try relaxing the runtime";
   return "loosen a filter or two";
 }
@@ -1262,46 +1320,68 @@ async function fetchOmdb(imdbId) {
   } catch (e) { return null; }
 }
 function numOf(x) { const v = parseFloat(x); return isNaN(v) ? null : v; }
-function renderScores(base, omdb) {
-  const el = document.getElementById("rScores");
-  const parts = [], out = [];
-  if (base.letterboxd) parts.push(base.letterboxd * 20);
-  if (base.tmdb) parts.push(base.tmdb * 10);
-  if (omdb) {
-    const imdb = numOf(omdb.imdbRating);
-    if (imdb !== null) { parts.push(imdb * 10); out.push("IMDb <b>" + imdb.toFixed(1) + "</b>"); }
-    // RT is an approval meter (% of positive reviews), not a rating — shown but kept out of the blend
-    const rt = (omdb.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
-    const rtv = rt ? numOf(rt.Value) : null;
-    if (rtv !== null) out.push("🍅 <b>" + Math.round(rtv) + "%</b>");
-    const mc = numOf(omdb.Metascore);
-    if (mc !== null) { parts.push(mc); out.push("Meta <b>" + Math.round(mc) + "</b>"); }
-  }
-  if (!out.length || parts.length < 2) { el.innerHTML = out.join(" · "); return; }
-  const blend = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
-  el.innerHTML = out.join(" · ") + ' · <span class="bl">blended ★ ' + blend + "/100</span>" + divergenceTag(base, omdb);
+
+// Look up a Letterboxd rating from any loaded list (no registry entry is created).
+function lbRatingFor(title, year) {
+  const cands = TITLE_IDX.get(norm(title)) || [];
+  const f = year ? cands.find(x => x.year && Math.abs(x.year - year) <= 1) : (cands.length === 1 ? cands[0] : null);
+  return f && f.rating ? f.rating : null;
 }
 
-// Critics vs crowd: Metacritic + RT aggregate professional critics (demanding, craft-focused);
-// IMDb/TMDB/Letterboxd are popular votes (how it *feels*). A big gap says something real.
-function divergenceTag(base, omdb) {
-  if (!omdb) return "";
-  const critics = [];
-  const mc = numOf(omdb.Metascore);
-  if (mc !== null) critics.push(mc);
-  const rt = (omdb.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
-  const rtv = rt ? numOf(rt.Value) : null;
-  if (rtv !== null) critics.push(rtv);
-  const crowd = [];
-  const imdb = numOf(omdb.imdbRating);
-  if (imdb !== null) crowd.push(imdb * 10);
-  if (base.tmdb) crowd.push(base.tmdb * 10);
-  if (base.letterboxd) crowd.push(base.letterboxd * 20);
-  if (!critics.length || !crowd.length) return "";
-  const d = critics.reduce((a, b) => a + b, 0) / critics.length - crowd.reduce((a, b) => a + b, 0) / crowd.length;
-  if (d >= 12) return ' <span class="dtag critics" title="Professional critics (Metacritic/RT) rate this well above general audiences. Usually a sign of something demanding, arty or divisive — often a deep one that asks more of you than it hands over.">🎭 critics’ darling</span>';
-  if (d <= -12) return ' <span class="dtag crowd" title="Audiences rate this well above professional critics. Fun first, prestige later — a great time that critics found less remarkable.">🍿 crowd-pleaser</span>';
-  return "";
+// Collect every score into one normalized bag. RT never joins the blend (approval meter, not a rating).
+function scoreBag(base, omdb) {
+  const s = { lb: base.letterboxd || null, tmdb: base.tmdb || null, imdb: null, meta: null, rt: null, blend: null };
+  if (omdb) {
+    s.imdb = numOf(omdb.imdbRating);
+    s.meta = numOf(omdb.Metascore);
+    const rt = (omdb.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
+    s.rt = rt ? numOf(rt.Value) : null;
+  }
+  const parts = [];
+  if (s.lb) parts.push(s.lb * 20);
+  if (s.tmdb) parts.push(s.tmdb * 10);
+  if (s.imdb) parts.push(s.imdb * 10);
+  if (s.meta !== null) parts.push(s.meta);
+  if (parts.length >= 2) s.blend = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+  return s;
+}
+
+function renderScores(base, omdb) {
+  const el = document.getElementById("rScores");
+  const s = scoreBag(base, omdb);
+  const row = [];
+  if (s.lb) row.push("Letterboxd <b>★ " + s.lb.toFixed(1) + "</b>");
+  if (s.tmdb) row.push("TMDB <b>" + s.tmdb.toFixed(1) + "</b>");
+  if (s.imdb) row.push("IMDb <b>" + s.imdb.toFixed(1) + "</b>");
+  if (s.meta !== null) row.push("Meta <b>" + Math.round(s.meta) + "</b>");
+  let html = row.join(" · ");
+  if (s.rt !== null) html += '<div class="rtrow">🍅 ' + Math.round(s.rt) + "% on the Tomatometer <span title=\"Rotten Tomatoes measures how many critics liked it, not how much — an approval meter, so it stays out of the blend.\">ⓘ</span></div>";
+  if (s.blend !== null) html += '<div class="blrow"><span class="bl">blended ★ ' + s.blend + "/100</span>" + categoryTag(s) + "</div>";
+  el.innerHTML = html;
+}
+
+// The category system (Leo's rationale, v0.8):
+// Metacritic + RT = professional critics — demanding, craft-focused, tolerant of difficulty.
+// IMDb + TMDB + Letterboxd = popular vote — how the film *feels* to a normal evening.
+// A big gap between the two camps is signal; when they agree, the blend level tells the story.
+function categoryTag(s) {
+  const critics = [], crowd = [];
+  if (s.meta !== null) critics.push(s.meta);
+  if (s.rt !== null) critics.push(s.rt);
+  if (s.imdb) crowd.push(s.imdb * 10);
+  if (s.tmdb) crowd.push(s.tmdb * 10);
+  if (s.lb) crowd.push(s.lb * 20);
+  if (critics.length && crowd.length) {
+    const d = critics.reduce((a, b) => a + b, 0) / critics.length - crowd.reduce((a, b) => a + b, 0) / crowd.length;
+    if (d >= 12) return ' <span class="dtag critics" title="Professional critics (Metacritic/RT) rate this well above general audiences. Usually something demanding, arty or divisive — often a deep one that asks more of you than it hands over.">🎭 critics’ darling</span>';
+    if (d <= -12) return ' <span class="dtag crowd" title="Audiences rate this well above professional critics. Fun first, prestige later — a great time critics found less remarkable.">🍿 crowd-pleaser</span>';
+  }
+  if (s.blend === null) return "";
+  if (s.blend >= 85) return ' <span class="dtag classic" title="Critics and audiences agree at the very top. The kind of film that ends up on all-time lists.">👑 consensus classic</span>';
+  if (s.blend >= 75) return ' <span class="dtag plain" title="Strong scores across every camp — a safe great pick.">✨ acclaimed all around</span>';
+  if (s.blend >= 65) return ' <span class="dtag plain" title="Everyone finds it good; nobody calls it a masterpiece. Reliable.">👍 solidly liked</span>';
+  if (s.blend >= 55) return ' <span class="dtag plain" title="Critics and audiences both shrug a little — worth it if the premise speaks to you.">🌗 mixed reception</span>';
+  return ' <span class="dtag plain" title="Rough scores across the board. Sometimes that\'s exactly the night.">🧨 rough ride</span>';
 }
 function setPoster(path) {
   const el = document.getElementById("rPoster");
@@ -1341,6 +1421,66 @@ async function tmdbDetails(id, append) {
   return d;
 }
 
+// ---------------- list ratings enrichment (server cache at /api/ratings) ----------------
+let ratingsApiState = "unknown"; // unknown | loading | ok | down
+let ratingsFetchSeq = 0;
+async function ensureListRatings() {
+  const films = combinedFilms().map(e => e.film).filter(f => !f.ext);
+  if (!films.length) return;
+  const seq = ++ratingsFetchSeq;
+  ratingsApiState = "loading"; updateRateHint();
+  try {
+    let remaining = films, rounds = 0;
+    while (remaining.length && rounds < 12) {
+      rounds++;
+      const batch = remaining.slice(0, 60);
+      const r = await fetch("/api/ratings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ films: batch.map(f => ({ t: f.title, y: f.year })) }),
+      });
+      if (!r.ok) throw new Error("ratings api " + r.status);
+      const d = await r.json();
+      if (seq !== ratingsFetchSeq) return;
+      batch.forEach(f => {
+        const row = d.rows && d.rows[keyOf(f.title, f.year)];
+        if (row) {
+          f.ext = { imdb: row.imdb != null ? +row.imdb : null, tmdb: row.tmdb != null ? +row.tmdb : null, meta: row.meta != null ? +row.meta : null, rt: row.rt != null ? +row.rt : null };
+          const parts = [];
+          if (f.rating) parts.push(f.rating * 20);
+          if (f.ext.tmdb) parts.push(f.ext.tmdb * 10);
+          if (f.ext.imdb) parts.push(f.ext.imdb * 10);
+          if (f.ext.meta !== null) parts.push(f.ext.meta);
+          f.ext.blend = parts.length >= 2 ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
+        }
+      });
+      if (!d.pending) {
+        // server fully answered this batch — anything in it without a row is unresolvable
+        batch.filter(f => !f.ext).forEach(f => { f.ext = { imdb: null, tmdb: null, meta: null, rt: null, blend: null }; });
+      }
+      remaining = remaining.filter(f => !f.ext);
+      if (mode === "lists") refresh();
+    }
+    ratingsApiState = "ok";
+  } catch (e) {
+    if (seq !== ratingsFetchSeq) return;
+    ratingsApiState = "down";
+  }
+  updateRateHint();
+  if (mode === "lists") refresh();
+}
+
+// Full score bag for a TMDB movie (used by the DB-mode min-rating roll)
+async function dbScoreFor(m) {
+  const lb = lbRatingFor(m.title, m.release_date ? +m.release_date.slice(0, 4) : null);
+  try {
+    const det = await tmdbDetails(m.id, "credits,watch/providers");
+    const omdb = await fetchOmdb(det.imdb_id);
+    return scoreBag({ tmdb: m.vote_average || null, letterboxd: lb }, omdb);
+  } catch (e) {
+    return scoreBag({ tmdb: m.vote_average || null, letterboxd: lb }, null);
+  }
+}
+
 const searchCache = new Map();
 async function enrichListPick(f) {
   const seq = ++enrichSeq;
@@ -1361,6 +1501,9 @@ async function enrichListPick(f) {
     const omdb = await fetchOmdb(det.imdb_id);
     if (seq !== enrichSeq) return;
     renderScores({ letterboxd: f.rating, tmdb: m.vote_average }, omdb);
+    // free win: a viewed pick becomes filterable by every source
+    const s = scoreBag({ letterboxd: f.rating, tmdb: m.vote_average }, omdb);
+    f.ext = { imdb: s.imdb, tmdb: s.tmdb, meta: s.meta, rt: s.rt, blend: s.blend };
   } catch (e) { /* enrichment is best-effort */ }
 }
 
@@ -1379,8 +1522,7 @@ async function showDbPick(m) {
   titleEl.textContent = m.title;
   document.getElementById("rSub").textContent = m.release_date ? m.release_date.slice(0, 4) : "";
   document.getElementById("rSrcs").innerHTML = "";
-  document.getElementById("rRating").textContent = m.vote_average ? "★ " + m.vote_average.toFixed(1) : "—";
-  document.getElementById("rRatingSrc").textContent = "TMDB";
+  renderScores({ tmdb: m.vote_average, letterboxd: lbRatingFor(m.title, m.release_date ? +m.release_date.slice(0, 4) : null) }, null);
   document.getElementById("rRuntime").textContent = "…";
   document.getElementById("rCountry").textContent = "…";
   document.getElementById("rGenres").textContent = (m.genre_ids || []).map(g => GENRE_NAME.get(g)).filter(Boolean).join(" · ");
@@ -1406,7 +1548,7 @@ async function showDbPick(m) {
     renderProviders(det["watch/providers"]);
     const omdb = await fetchOmdb(det.imdb_id);
     if (seq !== enrichSeq) return;
-    renderScores({ tmdb: m.vote_average }, omdb);
+    renderScores({ tmdb: m.vote_average, letterboxd: lbRatingFor(m.title, m.release_date ? +m.release_date.slice(0, 4) : null) }, omdb);
   } catch (e) {
     if (seq !== enrichSeq) return;
     document.getElementById("rRuntime").textContent = "—";
@@ -1434,11 +1576,30 @@ async function dbPickRandom() {
       return;
     }
     const pages = Math.min(first.total_pages, 500);
-    const pg = 1 + Math.floor(Math.random() * pages);
-    const d = pg === 1 ? first : (params ? await tmdb("/discover/movie", Object.assign({}, params, { page: pg })) : await dbQuery(pg));
+    const candidate = async () => {
+      const pg = 1 + Math.floor(Math.random() * pages);
+      const d = pg === 1 ? first : (params ? await tmdb("/discover/movie", Object.assign({}, params, { page: pg })) : await dbQuery(pg));
+      const l = (d.results && d.results.length) ? d.results : first.results;
+      return { list: l, m: l[Math.floor(Math.random() * l.length)] };
+    };
+    let { list, m } = await candidate();
     if (ps !== pickSeq) return;
-    const list = (d.results && d.results.length) ? d.results : first.results;
-    const m = list[Math.floor(Math.random() * list.length)];
+    // Non-TMDB min rating can't be pushed into discover — roll candidates and keep the best
+    if (db.minR > 0 && db.rateSrc !== "tmdb") {
+      titleEl.textContent = "rolling for " + RATE_SRC[db.rateSrc].label.replace(" ★", "") + " " + RATE_SRC[db.rateSrc].fmt(db.minR) + "…";
+      let best = m, bestV = -1;
+      for (let t = 0; t < 5; t++) {
+        const bag = await dbScoreFor(m);
+        if (ps !== pickSeq) return;
+        const v = bag[db.rateSrc];
+        if (v !== null && v >= db.minR - 1e-9) { best = m; bestV = Infinity; break; }
+        if (v !== null && v > bestV) { bestV = v; best = m; }
+        const nxt = await candidate();
+        if (ps !== pickSeq) return;
+        list = nxt.list; m = nxt.m;
+      }
+      m = best;
+    }
     let ticks = 0;
     const total = 12;
     const spin = () => {
@@ -1474,15 +1635,11 @@ function setMode(m2) {
     document.getElementById("vibeHint").textContent = mode === "db"
       ? "one at a time · approximate — mapped to genres & keywords" : "pick one or more";
     document.getElementById("streamOnly").style.display = mode === "db" ? "" : "none";
-    document.getElementById("ratingLabel").textContent = mode === "db" ? "Min TMDB rating" : "Min Letterboxd rating";
     document.getElementById("searchLabel").textContent = mode === "db" ? "Search the whole database" : "Title, director or country";
     document.getElementById("search").placeholder = mode === "db" ? "e.g. Snatch, Oppenheimer, Cidade de Deus…" : "e.g. Kurosawa, Brazil, Wilder…";
     document.getElementById("search").value = mode === "db" ? db.query : state.search;
-    const r = document.getElementById("rating");
-    if (mode === "db") { r.min = 5.0; r.max = 8.5; r.value = db.minRating || 5.0; }
-    else { r.min = 3.0; r.max = 4.6; r.value = state.minRating; }
     document.getElementById("runtime").value = mode === "db" ? db.maxRuntime : state.maxRuntime;
-    updateRatingVal(); updateRuntimeVal();
+    applyRateSrc(); updateRuntimeVal();
   }
   resultEl.classList.remove("show");
   document.getElementById("history").innerHTML = "";
@@ -1646,7 +1803,7 @@ function showFilm(entry) {
   currentDbMovie = null; currentDbDet = null;
   document.getElementById("addPickBtn").style.display = "none";
   clearEnrichment();
-  document.getElementById("rRatingSrc").textContent = "Letterboxd";
+  renderScores({ letterboxd: f.rating }, null); // LB shows instantly; the rest streams in
   const vibeEl = document.getElementById("rVibe");
   vibeEl.textContent = f.vibe ? f.vibe + " " + (VIBE_EMOJI[f.vibe] || "") : "Imported pick";
   titleEl.textContent = f.title;
@@ -1655,7 +1812,6 @@ function showFilm(entry) {
   const srcsEl = document.getElementById("rSrcs");
   srcsEl.innerHTML = activeSources().length > 1
     ? entry.srcs.map(s => '<span class="tag">' + esc(s) + "</span>").join("") : "";
-  document.getElementById("rRating").textContent = f.rating ? "★ " + f.rating.toFixed(2) : "—";
   document.getElementById("rRuntime").textContent = f.runtime ? fmtRuntime(f.runtime) : "—";
   document.getElementById("rCountry").textContent = f.country || "—";
   document.getElementById("rGenres").textContent = f.genres ? f.genres.join(" · ") : "no details yet — the database version will fill these in";
@@ -1736,6 +1892,13 @@ function refresh() {
 document.getElementById("modeLists").onclick = () => { if (mode !== "lists") setMode("lists"); };
 document.getElementById("modeDb").onclick = () => { if (mode !== "db") setMode("db"); };
 document.getElementById("modeSearch").onclick = () => { if (mode !== "search") setMode("search"); };
+
+const rateSel = document.getElementById("rateSrc");
+Object.entries(RATE_SRC).forEach(([k, cfg]) => {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = cfg.label;
+  rateSel.appendChild(o);
+});
 
 const countrySel = document.getElementById("country");
 COUNTRIES.forEach(([code, label]) => {
