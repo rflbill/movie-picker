@@ -88,9 +88,33 @@
   .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
   @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
 
-  #runtime { accent-color: var(--blue); }
-  #rating { accent-color: var(--pink); }
   input[type="range"] { width: 100%; cursor: pointer; }
+
+  /* dual-thumb range */
+  .dual { position: relative; height: 30px; min-width: 120px; }
+  .dual input[type="range"] {
+    position: absolute; left: 0; top: 7px; width: 100%; height: 16px; margin: 0;
+    -webkit-appearance: none; appearance: none; background: none; pointer-events: none;
+  }
+  .dual input[type="range"]::-webkit-slider-runnable-track { background: transparent; height: 16px; }
+  .dual input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; pointer-events: auto; cursor: pointer;
+    width: 15px; height: 15px; border-radius: 50%; margin-top: 1px; border: 2px solid var(--bg-2);
+  }
+  .dual input[type="range"]::-moz-range-track { background: transparent; height: 16px; }
+  .dual input[type="range"]::-moz-range-thumb {
+    pointer-events: auto; cursor: pointer; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-2);
+  }
+  .dual.pink input::-webkit-slider-thumb { background: var(--pink); }
+  .dual.blue input::-webkit-slider-thumb { background: #5b9dff; }
+  .dual.pink input::-moz-range-thumb { background: var(--pink); }
+  .dual.blue input::-moz-range-thumb { background: #5b9dff; }
+  .dual .dual-track { position: absolute; top: 12px; left: 2px; right: 2px; height: 6px; border-radius: 3px; background: #2a3350; }
+  .dual .dual-track .fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+  .dual.pink .fill { background: var(--pink-dim); }
+  .dual.blue .fill { background: var(--blue-deep); }
+
+  .chip.zero { opacity: .4; }
   .rangeval { color: var(--blue); font-weight: 600; font-size: 13px; }
   .rangeval.pink { color: var(--pink); }
 
@@ -107,7 +131,7 @@
     border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; flex-wrap: wrap;
   }
   .poolcount { font-size: 13.5px; color: var(--muted); }
-  .poolcount b { color: var(--cream); font-size: 16px; }
+  .poolcount b { color: var(--cream); font-size: 21px; letter-spacing: .3px; }
   .poolcount.zero b { color: var(--red); }
   .poolcount .warn { color: var(--pink); font-size: 12px; }
   .linkbtn {
@@ -391,12 +415,20 @@
       <div class="chips" id="vibeChips"></div>
     </div>
     <div class="frow">
-      <div class="flabel">Genres <span class="hint">click once to keep only · twice to exclude · thrice to clear</span></div>
+      <div class="flabel">Genres <span class="hint">click once to keep only · twice to exclude · thrice to clear</span>
+        <span class="mode" id="genreModeWrap" style="display:none; margin-left:10px;">
+          <button id="gmAny" class="on">match any</button><button id="gmAll">match all</button>
+        </span>
+      </div>
       <div class="chips" id="genreChips"></div>
     </div>
     <div class="frow" id="catRow">
       <div class="flabel">Score category <span class="hint" id="catHint">from the ratings — in database mode these apply to the roll &amp; dim the grid</span></div>
       <div class="chips" id="catChips"></div>
+    </div>
+    <div class="frow" id="awardRow">
+      <div class="flabel">Awards <span class="hint">curated lists, silent-era to 2026 — in database mode they steer the roll &amp; dim the grid</span></div>
+      <div class="chips" id="awardChips"></div>
     </div>
     <div class="frow">
       <div class="flabel">Decade</div>
@@ -404,14 +436,22 @@
     </div>
     <div class="cols frow">
       <div>
-        <div class="flabel">Max runtime &nbsp;<span class="rangeval" id="runtimeVal">any</span></div>
-        <input type="range" id="runtime" min="80" max="360" step="5" value="360">
+        <div class="flabel">Runtime range &nbsp;<span class="rangeval" id="runtimeVal">any</span></div>
+        <div class="dual blue">
+          <div class="dual-track"><div class="fill" id="runtimeFill"></div></div>
+          <input type="range" id="runtimeLo" min="40" max="360" step="5" value="40">
+          <input type="range" id="runtimeHi" min="40" max="360" step="5" value="360">
+        </div>
       </div>
       <div>
-        <div class="flabel"><span id="ratingLabel">Min rating</span> &nbsp;<span class="rangeval pink" id="ratingVal">any</span></div>
+        <div class="flabel"><span id="ratingLabel">Rating range</span> &nbsp;<span class="rangeval pink" id="ratingVal">any</span></div>
         <div style="display:flex; gap:8px; align-items:center;">
           <select id="rateSrc" style="flex:none; max-width:47%;"></select>
-          <input type="range" id="rating" min="3.0" max="4.6" step="0.1" value="3.0">
+          <div class="dual pink" style="flex:1;">
+            <div class="dual-track"><div class="fill" id="ratingFill"></div></div>
+            <input type="range" id="ratingLo">
+            <input type="range" id="ratingHi">
+          </div>
         </div>
         <div class="flabel" style="margin-top:5px;"><span class="hint" id="rateHint"></span></div>
       </div>
@@ -493,7 +533,7 @@
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.9</span> · genre chips: once = only these, twice = exclude · score categories filter both tabs<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.10</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome)<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -821,8 +861,8 @@ function combinedFilms() {
 
 // ---------------- state ----------------
 const state = {
-  vibes: new Set(), genres: new Set(), exGenres: new Set(), cats: new Set(), decades: new Set(),
-  maxRuntime: 360, rateSrc: "lb", minR: 0, search: "", hidden: new Set(),
+  vibes: new Set(), genres: new Set(), exGenres: new Set(), cats: new Set(), awards: new Set(), decades: new Set(),
+  genreMode: "any", minRT: 40, maxRuntime: 360, rateSrc: "lb", minR: 0, maxR: 4.6, search: "", hidden: new Set(),
 };
 let lastPickId = null;
 let pickSeq = 0;
@@ -830,32 +870,72 @@ let historyPicks = [];
 let browseLimit = 24;
 let hiddenByMeta = 0;
 
-function pool() {
+function pool(skipDim) {
+  // skipDim: when counting a facet's chips, that facet's own filter is ignored
+  // (so "Drama 17" answers: how many dramas fit everything ELSE you've set)
   const q = state.search.trim().toLowerCase();
-  hiddenByMeta = 0;
+  const counting = !!skipDim;
+  if (!counting) hiddenByMeta = 0;
+  const hb = () => { if (!counting) hiddenByMeta++; };
+  const cfg = RATE_SRC[state.rateSrc];
+  const rateActive = state.minR > 0 || state.maxR < cfg.max - 1e-9;
   return combinedFilms().filter(e => {
     const f = e.film;
     if (state.hidden.has(f.id)) return false;
     if (q && !((f.title || "").toLowerCase().includes(q)
       || (f.director || "").toLowerCase().includes(q)
       || (f.country || "").toLowerCase().includes(q))) return false;
-    if (state.decades.size && !state.decades.has(f.decade)) { if (f.decade === null) hiddenByMeta++; return false; }
+    if (skipDim !== "decades" && state.decades.size && !state.decades.has(f.decade)) { if (f.decade === null) hb(); return false; }
     // metadata-dependent filters: unknown-metadata films drop out only when the filter is tightened
-    if (state.vibes.size) { if (!f.vibe) { hiddenByMeta++; return false; } if (!state.vibes.has(f.vibe)) return false; }
-    if (state.genres.size) { if (!f.genres) { hiddenByMeta++; return false; } if (!f.genres.some(g => state.genres.has(g))) return false; }
-    if (state.exGenres.size && f.genres && f.genres.some(g => state.exGenres.has(g))) return false;
+    if (skipDim !== "vibes" && state.vibes.size) { if (!f.vibe) { hb(); return false; } if (!state.vibes.has(f.vibe)) return false; }
+    if (skipDim !== "genres") {
+      if (state.genres.size) {
+        if (!f.genres) { hb(); return false; }
+        const ok = state.genreMode === "all"
+          ? [...state.genres].every(g => f.genres.includes(g))
+          : f.genres.some(g => state.genres.has(g));
+        if (!ok) return false;
+      }
+      if (state.exGenres.size && f.genres && f.genres.some(g => state.exGenres.has(g))) return false;
+    }
     if (state.cats.size) {
       const c = filmCategory(f);
-      if (!c) { hiddenByMeta++; return false; }
+      if (!c) { hb(); return false; }
       if (!state.cats.has(c.id)) return false;
     }
-    if (state.maxRuntime < 360) { if (!f.runtime) { hiddenByMeta++; return false; } if (f.runtime > state.maxRuntime) return false; }
-    if (state.minR > 0) {
+    if (state.awards.size && !awardPassAny(state.awards, f.title, f.year)) return false;
+    if (state.minRT > 40 || state.maxRuntime < 360) {
+      if (!f.runtime) { hb(); return false; }
+      if (f.runtime > state.maxRuntime || f.runtime < state.minRT) return false;
+    }
+    if (rateActive) {
       const v = listScore(f, state.rateSrc);
-      if (v === null) { hiddenByMeta++; return false; }
-      if (v < state.minR - 1e-9) return false;
+      if (v === null) { hb(); return false; }
+      if (state.minR > 0 && v < state.minR - 1e-9) return false;
+      if (state.maxR < cfg.max - 1e-9 && v > state.maxR + 1e-9) return false;
     }
     return true;
+  });
+}
+
+// live facet counters: each chip's number answers "how many, given everything else"
+function recountLists() {
+  const dims = [
+    ["vibes", "vibeChips", f => f.vibe ? [f.vibe] : []],
+    ["genres", "genreChips", f => f.genres || []],
+    ["decades", "decadeChips", f => f.decade !== null ? [f.decade] : []],
+  ];
+  dims.forEach(([dim, elId, getter]) => {
+    const cnt = new Map();
+    pool(dim).forEach(e => getter(e.film).forEach(k => cnt.set(k, (cnt.get(k) || 0) + 1)));
+    document.getElementById(elId).querySelectorAll(".chip").forEach(c => {
+      if (!("k" in c.dataset)) return;
+      const key = c.dataset.kt === "n" ? +c.dataset.k : c.dataset.k;
+      const n = cnt.get(key) || 0;
+      const span = c.querySelector(".n");
+      if (span) span.textContent = n;
+      c.classList.toggle("zero", n === 0 && !c.classList.contains("on") && !c.classList.contains("ex"));
+    });
   });
 }
 
@@ -1013,6 +1093,7 @@ function buildCycleChips(el, items, inc, exc, fmt) {
   items.forEach(([key, count]) => {
     const c = document.createElement("button");
     c.className = "chip" + (inc.has(key) ? " on" : exc.has(key) ? " ex" : "");
+    c.dataset.k = String(key); c.dataset.kt = typeof key === "number" ? "n" : "s";
     c.innerHTML = (fmt ? fmt(key) : esc(String(key))) + (count === null ? "" : '<span class="n">' + count + "</span>");
     c.title = inc.has(key) ? "click again to exclude" : exc.has(key) ? "excluded — click to clear" : "";
     c.onclick = () => {
@@ -1044,11 +1125,25 @@ function buildCatChips(set) {
   });
 }
 
+function buildAwardChips(set) {
+  const el = document.getElementById("awardChips");
+  el.innerHTML = "";
+  AWARD_DEFS.forEach(a => {
+    const c = document.createElement("button");
+    c.className = "chip" + (set.has(a.id) ? " on" : "");
+    c.innerHTML = a.label;
+    c.title = a.tip;
+    c.onclick = () => { set.has(a.id) ? set.delete(a.id) : set.add(a.id); c.classList.toggle("on"); refresh(); };
+    el.appendChild(c);
+  });
+}
+
 function buildChips(el, items, set, fmt) {
   el.innerHTML = "";
   items.forEach(([key, count]) => {
     const c = document.createElement("button");
     c.className = "chip" + (set.has(key) ? " on" : "");
+    c.dataset.k = String(key); c.dataset.kt = typeof key === "number" ? "n" : "s";
     c.innerHTML = (fmt ? fmt(key) : esc(String(key))) + (count === null ? "" : '<span class="n">' + count + "</span>");
     c.onclick = () => { set.has(key) ? set.delete(key) : set.add(key); c.classList.toggle("on"); refresh(); };
     el.appendChild(c);
@@ -1068,6 +1163,7 @@ function rebuildChips() {
     });
     buildCycleChips(document.getElementById("genreChips"), GENRES.map(([id, name]) => [id, null]), db.genres, db.exGenres, id => GENRE_NAME.get(id));
     buildCatChips(db.cats);
+    buildAwardChips(db.awards);
     const decs = [];
     for (let d = 1930; d <= 2020; d += 10) decs.push([d, null]);
     buildChips(document.getElementById("decadeChips"), decs, db.decades, d => d + "s");
@@ -1090,6 +1186,7 @@ function rebuildChips() {
   buildCycleChips(document.getElementById("genreChips"),
     [...gc.entries()].sort((a, b) => b[1] - a[1]), state.genres, state.exGenres);
   buildCatChips(state.cats);
+  buildAwardChips(state.awards);
   buildChips(document.getElementById("decadeChips"),
     [...dc.entries()].sort((a, b) => a[0] - b[0]), state.decades, d => d + "s");
   // datalist
@@ -1108,35 +1205,51 @@ function rebuildChips() {
 // ---------------- inputs ----------------
 // One min-rating filter, six score sources. Slider range adapts to the source's native scale.
 const RATE_SRC = {
-  lb:    { label: "Letterboxd ★", min: 2.0, max: 4.6, step: 0.1, fmt: v => "★ " + v.toFixed(1) + "+" },
-  tmdb:  { label: "TMDB",         min: 5.0, max: 8.5, step: 0.1, fmt: v => v.toFixed(1) + "+" },
-  imdb:  { label: "IMDb",         min: 5.0, max: 8.8, step: 0.1, fmt: v => v.toFixed(1) + "+" },
-  meta:  { label: "Metacritic",   min: 40,  max: 95,  step: 1,   fmt: v => v + "+" },
-  rt:    { label: "Rotten 🍅",    min: 40,  max: 98,  step: 1,   fmt: v => v + "%+" },
-  blend: { label: "Blended ★",    min: 40,  max: 90,  step: 1,   fmt: v => "★ " + v + "+" },
+  lb:    { label: "Letterboxd ★", min: 1.0, max: 4.6, step: 0.1, fmt2: v => "★ " + (+v).toFixed(1) },
+  tmdb:  { label: "TMDB",         min: 2.0, max: 8.5, step: 0.1, fmt2: v => (+v).toFixed(1) },
+  imdb:  { label: "IMDb",         min: 2.0, max: 8.8, step: 0.1, fmt2: v => (+v).toFixed(1) },
+  meta:  { label: "Metacritic",   min: 10,  max: 95,  step: 1,   fmt2: v => String(Math.round(v)) },
+  rt:    { label: "Rotten 🍅",    min: 5,   max: 98,  step: 1,   fmt2: v => Math.round(v) + "%" },
+  blend: { label: "Blended ★",    min: 20,  max: 90,  step: 1,   fmt2: v => "★ " + Math.round(v) },
 };
+Object.values(RATE_SRC).forEach(c => { c.fmt = v => c.fmt2(v) + "+"; });
 function curFilt() { return mode === "db" ? db : state; }
 function listScore(f, src) {
   if (src === "lb") return f.rating || null;
   if (!f.ext) return null;
   return f.ext[src] !== undefined && f.ext[src] !== null ? f.ext[src] : null;
 }
+function paintDual(loEl, hiEl, fillEl) {
+  const min = +loEl.min, max = +loEl.max;
+  const lo = Math.min(+loEl.value, +hiEl.value), hi = Math.max(+loEl.value, +hiEl.value);
+  fillEl.style.left = ((lo - min) / (max - min) * 100) + "%";
+  fillEl.style.right = (100 - (hi - min) / (max - min) * 100) + "%";
+}
 function applyRateSrc() {
   const flt = curFilt();
   const cfg = RATE_SRC[flt.rateSrc];
   const sel = document.getElementById("rateSrc");
   if (sel.value !== flt.rateSrc) sel.value = flt.rateSrc;
-  const r = document.getElementById("rating");
-  r.min = cfg.min; r.max = cfg.max; r.step = cfg.step;
-  r.value = flt.minR || cfg.min;
+  const lo = document.getElementById("ratingLo"), hi = document.getElementById("ratingHi");
+  lo.min = hi.min = cfg.min; lo.max = hi.max = cfg.max; lo.step = hi.step = cfg.step;
+  lo.value = flt.minR || cfg.min;
+  hi.value = Math.min(flt.maxR, cfg.max);
+  paintDual(lo, hi, document.getElementById("ratingFill"));
   updateRatingVal();
   updateRateHint();
+}
+function applyRuntimeUI() {
+  const flt = curFilt();
+  const lo = document.getElementById("runtimeLo"), hi = document.getElementById("runtimeHi");
+  lo.value = flt.minRT; hi.value = flt.maxRuntime;
+  paintDual(lo, hi, document.getElementById("runtimeFill"));
+  updateRuntimeVal();
 }
 function updateRateHint() {
   const el = document.getElementById("rateHint");
   const flt = curFilt();
-  if (mode === "db" && flt.rateSrc !== "tmdb" && flt.minR > 0)
-    el.textContent = "count & grid follow the other filters — your min " + RATE_SRC[flt.rateSrc].label.replace(" ★", "") + " is enforced on the roll itself";
+  if (mode === "db" && flt.rateSrc !== "tmdb" && rateBarActive(flt))
+    el.textContent = "count & grid follow the other filters — your " + RATE_SRC[flt.rateSrc].label.replace(" ★", "") + " range is enforced on the roll & shown by dimming";
   else if (mode === "lists" && flt.rateSrc !== "lb" && ratingsApiState === "down")
     el.textContent = "the ratings server isn't live yet — films without fetched scores are skipped";
   else if (mode === "lists" && flt.rateSrc !== "lb" && ratingsApiState === "loading")
@@ -1144,51 +1257,86 @@ function updateRateHint() {
   else el.textContent = "";
 }
 function updateRuntimeVal() {
-  const v = mode === "db" ? db.maxRuntime : state.maxRuntime;
-  document.getElementById("runtimeVal").textContent = v >= 360 ? "any" : "≤ " + fmtRuntime(v);
+  const flt = curFilt();
+  const loA = flt.minRT > 40, hiA = flt.maxRuntime < 360;
+  document.getElementById("runtimeVal").textContent =
+    !loA && !hiA ? "any"
+    : loA && hiA ? fmtRuntime(flt.minRT) + " – " + fmtRuntime(flt.maxRuntime)
+    : loA ? "≥ " + fmtRuntime(flt.minRT)
+    : "≤ " + fmtRuntime(flt.maxRuntime);
 }
 function updateRatingVal() {
   const flt = curFilt();
   const cfg = RATE_SRC[flt.rateSrc];
-  document.getElementById("ratingVal").textContent = flt.minR > 0 ? cfg.fmt(flt.minR) : "any";
+  const loA = flt.minR > 0, hiA = flt.maxR < cfg.max - 1e-9;
+  document.getElementById("ratingVal").textContent =
+    !loA && !hiA ? "any"
+    : loA && hiA ? cfg.fmt2(flt.minR) + " – " + cfg.fmt2(flt.maxR)
+    : loA ? cfg.fmt(flt.minR)
+    : "≤ " + cfg.fmt2(flt.maxR);
 }
-document.getElementById("runtime").oninput = e => {
-  if (mode === "db") db.maxRuntime = +e.target.value; else state.maxRuntime = +e.target.value;
+function onRuntimeInput(which) {
+  const lo = document.getElementById("runtimeLo"), hi = document.getElementById("runtimeHi");
+  if (which === "lo" && +lo.value > +hi.value) lo.value = hi.value;
+  if (which === "hi" && +hi.value < +lo.value) hi.value = lo.value;
+  const flt = curFilt();
+  flt.minRT = +lo.value;
+  flt.maxRuntime = +hi.value;
+  paintDual(lo, hi, document.getElementById("runtimeFill"));
   updateRuntimeVal();
   refresh();
-};
-document.getElementById("rating").oninput = e => {
+}
+function onRatingInput(which) {
+  const lo = document.getElementById("ratingLo"), hi = document.getElementById("ratingHi");
+  if (which === "lo" && +lo.value > +hi.value) lo.value = hi.value;
+  if (which === "hi" && +hi.value < +lo.value) hi.value = lo.value;
   const flt = curFilt();
   const cfg = RATE_SRC[flt.rateSrc];
-  const v = +e.target.value;
-  flt.minR = v <= cfg.min + 1e-9 ? 0 : v;
+  flt.minR = +lo.value <= cfg.min + 1e-9 ? 0 : +lo.value;
+  flt.maxR = +hi.value;
+  paintDual(lo, hi, document.getElementById("ratingFill"));
   updateRatingVal();
   updateRateHint();
   refresh();
-};
+}
+document.getElementById("runtimeLo").oninput = () => onRuntimeInput("lo");
+document.getElementById("runtimeHi").oninput = () => onRuntimeInput("hi");
+document.getElementById("ratingLo").oninput = () => onRatingInput("lo");
+document.getElementById("ratingHi").oninput = () => onRatingInput("hi");
 document.getElementById("rateSrc").onchange = e => {
   const flt = curFilt();
   flt.rateSrc = e.target.value;
   flt.minR = 0;
+  flt.maxR = RATE_SRC[flt.rateSrc].max;
   applyRateSrc();
   if (mode === "lists" && flt.rateSrc !== "lb") ensureListRatings();
   refresh();
 };
+
+function updateGenreModeUI() {
+  const flt = curFilt();
+  const wrap = document.getElementById("genreModeWrap");
+  wrap.style.display = (mode !== "search" && flt.genres && flt.genres.size > 1) ? "" : "none";
+  document.getElementById("gmAny").classList.toggle("on", flt.genreMode !== "all");
+  document.getElementById("gmAll").classList.toggle("on", flt.genreMode === "all");
+}
+document.getElementById("gmAny").onclick = () => { curFilt().genreMode = "any"; updateGenreModeUI(); refresh(); };
+document.getElementById("gmAll").onclick = () => { curFilt().genreMode = "all"; updateGenreModeUI(); refresh(); };
 document.getElementById("search").oninput = e => {
   if (mode === "db") db.query = e.target.value; else state.search = e.target.value;
   refresh();
 };
 document.getElementById("clearBtn").onclick = () => {
   if (mode === "db") {
-    db.vibe = null; db.genres.clear(); db.exGenres.clear(); db.cats.clear(); db.decades.clear(); db.rateSrc = "tmdb"; db.minR = 0; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
+    db.vibe = null; db.genres.clear(); db.exGenres.clear(); db.cats.clear(); db.awards.clear(); db.decades.clear();
+    db.genreMode = "any"; db.rateSrc = "tmdb"; db.minR = 0; db.maxR = RATE_SRC.tmdb.max; db.minRT = 40; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
     document.getElementById("streamOnly").classList.remove("on");
   } else {
-    state.vibes.clear(); state.genres.clear(); state.exGenres.clear(); state.cats.clear(); state.decades.clear();
-    state.maxRuntime = 360; state.rateSrc = "lb"; state.minR = 0; state.search = "";
+    state.vibes.clear(); state.genres.clear(); state.exGenres.clear(); state.cats.clear(); state.awards.clear(); state.decades.clear();
+    state.genreMode = "any"; state.minRT = 40; state.maxRuntime = 360; state.rateSrc = "lb"; state.minR = 0; state.maxR = RATE_SRC.lb.max; state.search = "";
   }
-  document.getElementById("runtime").value = 360;
   document.getElementById("search").value = "";
-  applyRateSrc(); updateRuntimeVal();
+  applyRateSrc(); applyRuntimeUI();
   document.querySelectorAll(".chip.on").forEach(c => { if (c.id !== "streamOnly" || mode !== "lists") c.classList.remove("on"); });
   rebuildChips();
   refresh();
@@ -1232,7 +1380,7 @@ const GENRES = [[28,"Action"],[12,"Adventure"],[16,"Animation"],[35,"Comedy"],[8
 const GENRE_NAME = new Map(GENRES);
 const COUNTRIES = [["BR","🇧🇷 Brazil"],["US","🇺🇸 United States"],["PT","🇵🇹 Portugal"],["AR","🇦🇷 Argentina"],["MX","🇲🇽 Mexico"],["CL","🇨🇱 Chile"],["CO","🇨🇴 Colombia"],["UY","🇺🇾 Uruguay"],["ES","🇪🇸 Spain"],["FR","🇫🇷 France"],["DE","🇩🇪 Germany"],["IT","🇮🇹 Italy"],["NL","🇳🇱 Netherlands"],["SE","🇸🇪 Sweden"],["GB","🇬🇧 United Kingdom"],["IE","🇮🇪 Ireland"],["PL","🇵🇱 Poland"],["JP","🇯🇵 Japan"],["KR","🇰🇷 South Korea"],["IN","🇮🇳 India"],["CA","🇨🇦 Canada"],["AU","🇦🇺 Australia"],["NZ","🇳🇿 New Zealand"],["TR","🇹🇷 Türkiye"],["ZA","🇿🇦 South Africa"]];
 
-const db = { vibe: null, genres: new Set(), exGenres: new Set(), cats: new Set(), decades: new Set(), rateSrc: "tmdb", minR: 0, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
+const db = { vibe: null, genres: new Set(), exGenres: new Set(), cats: new Set(), awards: new Set(), decades: new Set(), genreMode: "any", rateSrc: "tmdb", minR: 0, maxR: 8.5, minRT: 40, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
 
 // Vibe → TMDB discover mapping. Approximate by design: a vibe becomes a genre
 // group (| = OR) that must match, minus excluded genres, plus optional keyword/runtime.
@@ -1265,16 +1413,22 @@ function discoverParams(forceDecade) {
   const v = VIBE_DB[db.vibe];
   const gGroups = [];
   if (v && v.wg) gGroups.push(v.wg);
-  if (db.genres.size) gGroups.push([...db.genres].join("|"));
-  if (gGroups.length) p.with_genres = gGroups.join(","); // groups AND-ed, each group is an OR
+  if (db.genres.size) gGroups.push([...db.genres].join(db.genreMode === "all" ? "," : "|"));
+  if (gGroups.length) p.with_genres = gGroups.join(","); // groups AND-ed, "|" inside a group is OR
   const wo = new Set();
   if (v && v.wo) v.wo.split(",").forEach(x => wo.add(x));
   db.exGenres.forEach(id => wo.add(String(id)));
   if (wo.size) p.without_genres = [...wo].join(",");
   if (v && v.kw) p.with_keywords = v.kw;
-  if (db.rateSrc === "tmdb" && db.minR > 0) p["vote_average.gte"] = db.minR;
+  if (db.rateSrc === "tmdb") {
+    if (db.minR > 0) p["vote_average.gte"] = db.minR;
+    if (db.maxR < RATE_SRC.tmdb.max - 1e-9) p["vote_average.lte"] = db.maxR;
+  }
   if (db.maxRuntime < 360) { p["with_runtime.lte"] = db.maxRuntime; p["with_runtime.gte"] = 40; }
-  if (v && v.extra) Object.assign(p, v.extra);
+  if (db.minRT > 40) p["with_runtime.gte"] = db.minRT;
+  if (v && v.extra) Object.keys(v.extra).forEach(k => {
+    p[k] = k === "with_runtime.gte" ? Math.max(p[k] || 0, v.extra[k]) : v.extra[k];
+  });
   const decs = forceDecade !== undefined ? [forceDecade] : [...db.decades];
   if (decs.length) {
     p["primary_release_date.gte"] = Math.min(...decs) + "-01-01";
@@ -1299,9 +1453,14 @@ async function doRefreshDb() {
     const d = await dbQuery(1);
     if (seq !== db.seq) return;
     db.total = d.total_results; db.pages = Math.min(d.total_pages, 500); db.page1 = d.results;
+    const blind = [];
+    if (db.rateSrc !== "tmdb" && rateBarActive(db)) blind.push("rating range");
+    if (db.cats.size) blind.push("categories");
+    if (db.awards.size) blind.push("awards");
     pc.innerHTML = "<b>" + db.total.toLocaleString() + "</b> film" + (db.total === 1 ? "" : "s")
       + (db.query.trim() ? " match your search" : " match your filters")
-      + (db.streamOnly ? ' <span class="warn">· streaming in ' + esc(db.country) + "</span>" : "");
+      + (db.streamOnly ? ' <span class="warn">· streaming in ' + esc(db.country) + "</span>" : "")
+      + (blind.length ? ' <span class="warn">· this count can\'t see your ' + blind.join(" & ") + " — those are enforced on the roll and shown by dimming</span>" : "");
     pc.classList.toggle("zero", !db.total);
     document.getElementById("pickBtn").disabled = !db.total;
     renderDbGrid(db.page1, false);
@@ -1473,17 +1632,343 @@ function filmCategory(f) {
   return categoryOf(s);
 }
 
-// DB-mode acceptance bars: min rating on a non-TMDB source, and/or category filter
+// DB-mode acceptance bars: rating range on a non-TMDB source, and/or category filter
+function rateBarActive(flt) {
+  const c = RATE_SRC[flt.rateSrc];
+  return flt.minR > 0 || flt.maxR < c.max - 1e-9;
+}
 function passesDbBars(s) {
-  if (db.minR > 0 && db.rateSrc !== "tmdb") {
+  if (db.rateSrc !== "tmdb" && rateBarActive(db)) {
     const v = s[db.rateSrc];
-    if (v === null || v === undefined || v < db.minR - 1e-9) return false;
+    if (v === null || v === undefined) return false;
+    const c = RATE_SRC[db.rateSrc];
+    if (db.minR > 0 && v < db.minR - 1e-9) return false;
+    if (db.maxR < c.max - 1e-9 && v > db.maxR + 1e-9) return false;
   }
   if (db.cats.size) {
     const c = categoryOf(s);
     if (!c || !db.cats.has(c.id)) return false;
   }
   return true;
+}
+
+// ---------------- awards (curated static lists; updated through mid-2026) ----------------
+const AWARD_DEFS = [
+  { id: "bp",    label: "🏆 Oscar Best Picture",  tip: "Won the Academy Award for Best Picture (1929–2026 ceremonies)." },
+  { id: "bd",    label: "🎬 Oscar Best Director", tip: "The film its director won the Best Director Oscar for." },
+  { id: "palme", label: "🌴 Palme d'Or",          tip: "Won the top prize at Cannes (Palme d'Or era, 1955 onward)." },
+];
+const AWARD_DATA = {
+bp: `Wings|1927
+The Broadway Melody|1929
+All Quiet on the Western Front|1930
+Cimarron|1931
+Grand Hotel|1932
+Cavalcade|1933
+It Happened One Night|1934
+Mutiny on the Bounty|1935
+The Great Ziegfeld|1936
+The Life of Emile Zola|1937
+You Can't Take It with You|1938
+Gone with the Wind|1939
+Rebecca|1940
+How Green Was My Valley|1941
+Mrs. Miniver|1942
+Casablanca|1942
+Going My Way|1944
+The Lost Weekend|1945
+The Best Years of Our Lives|1946
+Gentleman's Agreement|1947
+Hamlet|1948
+All the King's Men|1949
+All About Eve|1950
+An American in Paris|1951
+The Greatest Show on Earth|1952
+From Here to Eternity|1953
+On the Waterfront|1954
+Marty|1955
+Around the World in 80 Days|1956
+The Bridge on the River Kwai|1957
+Gigi|1958
+Ben-Hur|1959
+The Apartment|1960
+West Side Story|1961
+Lawrence of Arabia|1962
+Tom Jones|1963
+My Fair Lady|1964
+The Sound of Music|1965
+A Man for All Seasons|1966
+In the Heat of the Night|1967
+Oliver!|1968
+Midnight Cowboy|1969
+Patton|1970
+The French Connection|1971
+The Godfather|1972
+The Sting|1973
+The Godfather Part II|1974
+One Flew Over the Cuckoo's Nest|1975
+Rocky|1976
+Annie Hall|1977
+The Deer Hunter|1978
+Kramer vs. Kramer|1979
+Ordinary People|1980
+Chariots of Fire|1981
+Gandhi|1982
+Terms of Endearment|1983
+Amadeus|1984
+Out of Africa|1985
+Platoon|1986
+The Last Emperor|1987
+Rain Man|1988
+Driving Miss Daisy|1989
+Dances with Wolves|1990
+The Silence of the Lambs|1991
+Unforgiven|1992
+Schindler's List|1993
+Forrest Gump|1994
+Braveheart|1995
+The English Patient|1996
+Titanic|1997
+Shakespeare in Love|1998
+American Beauty|1999
+Gladiator|2000
+A Beautiful Mind|2001
+Chicago|2002
+The Lord of the Rings: The Return of the King|2003
+Million Dollar Baby|2004
+Crash|2004
+The Departed|2006
+No Country for Old Men|2007
+Slumdog Millionaire|2008
+The Hurt Locker|2008
+The King's Speech|2010
+The Artist|2011
+Argo|2012
+12 Years a Slave|2013
+Birdman or (The Unexpected Virtue of Ignorance)|2014
+Birdman|2014
+Spotlight|2015
+Moonlight|2016
+The Shape of Water|2017
+Green Book|2018
+Parasite|2019
+Nomadland|2020
+CODA|2021
+Everything Everywhere All at Once|2022
+Oppenheimer|2023
+Anora|2024
+One Battle After Another|2025`,
+bd: `Two Arabian Knights|1927
+7th Heaven|1927
+The Divine Lady|1928
+All Quiet on the Western Front|1930
+Skippy|1931
+Bad Girl|1931
+Cavalcade|1933
+It Happened One Night|1934
+The Informer|1935
+Mr. Deeds Goes to Town|1936
+The Awful Truth|1937
+You Can't Take It with You|1938
+Gone with the Wind|1939
+The Grapes of Wrath|1940
+How Green Was My Valley|1941
+Mrs. Miniver|1942
+Casablanca|1942
+Going My Way|1944
+The Lost Weekend|1945
+The Best Years of Our Lives|1946
+Gentleman's Agreement|1947
+The Treasure of the Sierra Madre|1948
+A Letter to Three Wives|1949
+All About Eve|1950
+A Place in the Sun|1951
+The Quiet Man|1952
+From Here to Eternity|1953
+On the Waterfront|1954
+Marty|1955
+Giant|1956
+The Bridge on the River Kwai|1957
+Gigi|1958
+Ben-Hur|1959
+The Apartment|1960
+West Side Story|1961
+Lawrence of Arabia|1962
+Tom Jones|1963
+My Fair Lady|1964
+The Sound of Music|1965
+A Man for All Seasons|1966
+The Graduate|1967
+Oliver!|1968
+Midnight Cowboy|1969
+Patton|1970
+The French Connection|1971
+Cabaret|1972
+The Sting|1973
+The Godfather Part II|1974
+One Flew Over the Cuckoo's Nest|1975
+Rocky|1976
+Annie Hall|1977
+The Deer Hunter|1978
+Kramer vs. Kramer|1979
+Ordinary People|1980
+Reds|1981
+Gandhi|1982
+Terms of Endearment|1983
+Amadeus|1984
+Out of Africa|1985
+Platoon|1986
+The Last Emperor|1987
+Rain Man|1988
+Born on the Fourth of July|1989
+Dances with Wolves|1990
+The Silence of the Lambs|1991
+Unforgiven|1992
+Schindler's List|1993
+Forrest Gump|1994
+Braveheart|1995
+The English Patient|1996
+Titanic|1997
+Saving Private Ryan|1998
+American Beauty|1999
+Traffic|2000
+A Beautiful Mind|2001
+The Pianist|2002
+The Lord of the Rings: The Return of the King|2003
+Million Dollar Baby|2004
+Brokeback Mountain|2005
+The Departed|2006
+No Country for Old Men|2007
+Slumdog Millionaire|2008
+The Hurt Locker|2008
+The King's Speech|2010
+The Artist|2011
+Life of Pi|2012
+Gravity|2013
+Birdman or (The Unexpected Virtue of Ignorance)|2014
+Birdman|2014
+The Revenant|2015
+La La Land|2016
+The Shape of Water|2017
+Roma|2018
+Parasite|2019
+Nomadland|2020
+The Power of the Dog|2021
+Everything Everywhere All at Once|2022
+Oppenheimer|2023
+Anora|2024
+One Battle After Another|2025`,
+palme: `Marty|1955
+The Silent World|1956
+Friendly Persuasion|1956
+The Cranes Are Flying|1957
+Black Orpheus|1959
+La Dolce Vita|1960
+Viridiana|1961
+The Long Absence|1961
+The Given Word|1962
+O Pagador de Promessas|1962
+The Leopard|1963
+The Umbrellas of Cherbourg|1964
+The Knack... and How to Get It|1965
+A Man and a Woman|1966
+The Birds, the Bees and the Italians|1966
+Blowup|1966
+If....|1968
+MASH|1970
+The Go-Between|1971
+The Working Class Goes to Heaven|1971
+The Mattei Affair|1972
+Scarecrow|1973
+The Hireling|1973
+The Conversation|1974
+Chronicle of the Years of Fire|1975
+Taxi Driver|1976
+Padre Padrone|1977
+The Tree of Wooden Clogs|1978
+Apocalypse Now|1979
+The Tin Drum|1979
+All That Jazz|1979
+Kagemusha|1980
+Man of Iron|1981
+Missing|1982
+Yol|1982
+The Ballad of Narayama|1983
+Paris, Texas|1984
+When Father Was Away on Business|1985
+The Mission|1986
+Under the Sun of Satan|1987
+Pelle the Conqueror|1987
+sex, lies, and videotape|1989
+Wild at Heart|1990
+Barton Fink|1991
+The Best Intentions|1992
+Farewell My Concubine|1993
+The Piano|1993
+Pulp Fiction|1994
+Underground|1995
+Secrets & Lies|1996
+Taste of Cherry|1997
+The Eel|1997
+Eternity and a Day|1998
+Rosetta|1999
+Dancer in the Dark|2000
+The Son's Room|2001
+The Pianist|2002
+Elephant|2003
+Fahrenheit 9/11|2004
+L'Enfant|2005
+The Child|2005
+The Wind That Shakes the Barley|2006
+4 Months, 3 Weeks and 2 Days|2007
+The Class|2008
+The White Ribbon|2009
+Uncle Boonmee Who Can Recall His Past Lives|2010
+The Tree of Life|2011
+Amour|2012
+Blue Is the Warmest Color|2013
+Winter Sleep|2014
+Dheepan|2015
+I, Daniel Blake|2016
+The Square|2017
+Shoplifters|2018
+Parasite|2019
+Titane|2021
+Triangle of Sadness|2022
+Anatomy of a Fall|2023
+Anora|2024
+It Was Just an Accident|2025
+Fjord|2026`,
+};
+const AWARDS = {};
+AWARD_DEFS.forEach(a => {
+  const m = new Map();
+  AWARD_DATA[a.id].split("\n").forEach(line => {
+    const i = line.lastIndexOf("|");
+    if (i < 1) return;
+    const t = line.slice(0, i), y = +line.slice(i + 1);
+    m.set(norm(t), { y, t });
+  });
+  AWARDS[a.id] = m;
+});
+function awardHas(id, title, year) {
+  const hit = AWARDS[id].get(norm(title));
+  return hit !== undefined && (year == null || Math.abs(hit.y - year) <= 1);
+}
+function awardPassAny(ids, title, year) {
+  for (const id of ids) if (awardHas(id, title, year)) return true;
+  return false;
+}
+function awardCandidates() {
+  const seen = new Set(), out = [];
+  db.awards.forEach(id => {
+    AWARDS[id].forEach(v => {
+      if (db.decades.size && !db.decades.has(Math.floor(v.y / 10) * 10)) return;
+      const k = norm(v.t) + "|" + v.y;
+      if (!seen.has(k)) { seen.add(k); out.push(v); }
+    });
+  });
+  return out;
 }
 function setPoster(path) {
   const el = document.getElementById("rPoster");
@@ -1586,49 +2071,67 @@ async function ensureListRatings() {
 let dimSeq = 0;
 async function dimGrid(items) {
   if (mode !== "db") return;
-  if (!((db.minR > 0 && db.rateSrc !== "tmdb") || db.cats.size)) return;
+  const needScores = (db.rateSrc !== "tmdb" && rateBarActive(db)) || db.cats.size;
+  const needAwards = db.awards.size > 0;
+  if (!needScores && !needAwards) return;
   if (!items || !items.length) return;
   const seq = ++dimSeq;
   const bags = new Map(); // tmdb movie id -> score bag
-  try {
-    // fetch through the cache server (also warms it for everyone); a few rounds for misses
-    let pendingFilms = items.slice();
-    for (let round = 0; round < 4 && pendingFilms.length; round++) {
-      const r = await fetch("/api/ratings", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ films: pendingFilms.map(m => ({ t: m.title, y: m.release_date ? +m.release_date.slice(0, 4) : null })) }),
-      });
-      if (!r.ok) throw new Error("ratings api " + r.status);
-      const d = await r.json();
-      if (seq !== dimSeq) return;
-      const still = [];
-      pendingFilms.forEach(m => {
-        const y = m.release_date ? +m.release_date.slice(0, 4) : null;
-        const row = d.rows && d.rows[keyOf(m.title, y)];
-        if (row) {
-          bags.set(m.id, scoreBag(
-            { tmdb: row.tmdb != null ? +row.tmdb : (m.vote_average || null), letterboxd: lbRatingFor(m.title, y) },
-            { imdbRating: row.imdb, Metascore: row.meta, Ratings: row.rt != null ? [{ Source: "Rotten Tomatoes", Value: row.rt + "%" }] : [], Response: "True" }
-          ));
-        } else still.push(m);
-      });
-      pendingFilms = still;
-      if (!d.pending && pendingFilms.length) break; // unresolvable — leave them undimmed
-    }
-  } catch (e) { return; } // server unreachable → no dimming, grid stays honest-by-omission
+  let scoresOk = false;
+  if (needScores) {
+    try {
+      // fetch through the cache server (also warms it for everyone); a few rounds for misses
+      let pendingFilms = items.slice();
+      for (let round = 0; round < 4 && pendingFilms.length; round++) {
+        const r = await fetch("/api/ratings", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ films: pendingFilms.map(m => ({ t: m.title, y: m.release_date ? +m.release_date.slice(0, 4) : null })) }),
+        });
+        if (!r.ok) throw new Error("ratings api " + r.status);
+        const d = await r.json();
+        if (seq !== dimSeq) return;
+        const still = [];
+        pendingFilms.forEach(m => {
+          const y = m.release_date ? +m.release_date.slice(0, 4) : null;
+          const row = d.rows && d.rows[keyOf(m.title, y)];
+          if (row) {
+            bags.set(m.id, scoreBag(
+              { tmdb: row.tmdb != null ? +row.tmdb : (m.vote_average || null), letterboxd: lbRatingFor(m.title, y) },
+              { imdbRating: row.imdb, Metascore: row.meta, Ratings: row.rt != null ? [{ Source: "Rotten Tomatoes", Value: row.rt + "%" }] : [], Response: "True" }
+            ));
+          } else still.push(m);
+        });
+        pendingFilms = still;
+        if (!d.pending && pendingFilms.length) break; // unresolvable — leave them undimmed
+      }
+      scoresOk = true;
+    } catch (e) { /* server unreachable → judge awards only (if any) */ }
+    if (!scoresOk && !needAwards) return;
+  }
   if (seq !== dimSeq || mode !== "db") return;
   let pass = 0, judged = 0;
   items.forEach(m => {
     const card = document.querySelector('.pcard[data-mid="' + m.id + '"]');
+    if (!card) return;
+    const y = m.release_date ? +m.release_date.slice(0, 4) : null;
     const s = bags.get(m.id);
-    if (!card || !s) return;
+    if (needScores && scoresOk && !s && !needAwards) return; // couldn't judge this one
+    const reasons = [];
+    if (needAwards && !awardPassAny(db.awards, m.title, y)) reasons.push("not on the selected award lists");
+    if (needScores && scoresOk && s && !passesDbBars(s)) {
+      if (db.rateSrc !== "tmdb" && rateBarActive(db)) {
+        const v = s[db.rateSrc];
+        reasons.push(RATE_SRC[db.rateSrc].label.replace(" ★", "") + ": " + (v === null || v === undefined ? "no score" : RATE_SRC[db.rateSrc].fmt2(v)));
+      }
+      if (db.cats.size) {
+        const cat = categoryOf(s);
+        reasons.push("category: " + (cat ? cat.label : "not enough scores"));
+      }
+    }
     judged++;
-    if (passesDbBars(s)) { pass++; return; }
+    if (!reasons.length) { pass++; return; }
     card.classList.add("dim");
-    const cat = categoryOf(s);
-    card.title = "below your bar — " +
-      (db.minR > 0 && db.rateSrc !== "tmdb" ? RATE_SRC[db.rateSrc].label.replace(" ★", "") + ": " + (s[db.rateSrc] === null || s[db.rateSrc] === undefined ? "no score" : s[db.rateSrc]) : "") +
-      (db.cats.size ? (db.minR > 0 && db.rateSrc !== "tmdb" ? " · " : "") + "category: " + (cat ? cat.label : "not enough scores") : "");
+    card.title = "outside your bars — " + reasons.join(" · ");
   });
   if (judged) {
     const bc = document.getElementById("browseCnt");
@@ -1730,6 +2233,7 @@ async function dbPickRandom() {
   titleEl.textContent = "rolling across ~1M films…";
   clearEnrichment();
   try {
+    if (db.awards.size) { await dbAwardRoll(ps); return; }
     let params = null;
     if (!db.query.trim() && db.decades.size > 1) {
       const ds = [...db.decades];
@@ -1751,10 +2255,10 @@ async function dbPickRandom() {
     };
     let { list, m } = await candidate();
     if (ps !== pickSeq) return;
-    // Non-TMDB min rating / category filters can't be pushed into discover —
+    // Non-TMDB rating range / category filters can't be pushed into discover —
     // audition candidates against the bars and keep the best if none pass
-    if ((db.minR > 0 && db.rateSrc !== "tmdb") || db.cats.size) {
-      titleEl.textContent = db.cats.size ? "rolling for your categories…" : "rolling for " + RATE_SRC[db.rateSrc].label.replace(" ★", "") + " " + RATE_SRC[db.rateSrc].fmt(db.minR) + "…";
+    if ((db.rateSrc !== "tmdb" && rateBarActive(db)) || db.cats.size) {
+      titleEl.textContent = db.cats.size ? "rolling for your categories…" : "rolling for " + RATE_SRC[db.rateSrc].label.replace(" ★", "") + "…";
       let best = m, bestV = -1, found = false;
       for (let t = 0; t < 6; t++) {
         const bag = await dbScoreFor(m);
@@ -1785,6 +2289,55 @@ async function dbPickRandom() {
   }
 }
 
+// Award roll: draw straight from the curated winners (a random discover roll
+// would never land on ~100 films among a million)
+async function dbAwardRoll(ps) {
+  const cands = awardCandidates();
+  if (!cands.length) {
+    titleEl.classList.remove("rolling");
+    titleEl.textContent = "no award winners in those decades";
+    return;
+  }
+  titleEl.textContent = "rolling the trophy shelf…";
+  let m = null, fallback = null;
+  for (let t = 0; t < 6; t++) {
+    const c = cands[Math.floor(Math.random() * cands.length)];
+    let hit = searchCache.get(keyOf(c.t, c.y));
+    if (hit === undefined) {
+      const d = await tmdb("/search/movie", { query: c.t, year: c.y, include_adult: false });
+      hit = d.results && d.results[0] ? d.results[0] : null;
+      searchCache.set(keyOf(c.t, c.y), hit);
+    }
+    if (ps !== pickSeq) return;
+    if (!hit) continue;
+    fallback = fallback || hit;
+    if ((db.rateSrc !== "tmdb" && rateBarActive(db)) || db.cats.size) {
+      const bag = await dbScoreFor(hit);
+      if (ps !== pickSeq) return;
+      if (!passesDbBars(bag)) continue;
+    }
+    m = hit;
+    break;
+  }
+  m = m || fallback;
+  if (!m) {
+    titleEl.classList.remove("rolling");
+    titleEl.textContent = "couldn't land an award pick — loosen a bar";
+    return;
+  }
+  let ticks = 0;
+  const total = 10;
+  const spin = () => {
+    if (ps !== pickSeq) return;
+    ticks++;
+    if (ticks < total) {
+      titleEl.textContent = cands[Math.floor(Math.random() * cands.length)].t;
+      setTimeout(spin, 40 + ticks * 14);
+    } else showDbPick(m);
+  };
+  spin();
+}
+
 function setMode(m2) {
   mode = m2;
   ++pickSeq; ++enrichSeq; // kill any in-flight spin/enrichment from the other mode
@@ -1806,8 +2359,7 @@ function setMode(m2) {
     document.getElementById("searchLabel").textContent = mode === "db" ? "Search the whole database" : "Title, director or country";
     document.getElementById("search").placeholder = mode === "db" ? "e.g. Snatch, Oppenheimer, Cidade de Deus…" : "e.g. Kurosawa, Brazil, Wilder…";
     document.getElementById("search").value = mode === "db" ? db.query : state.search;
-    document.getElementById("runtime").value = mode === "db" ? db.maxRuntime : state.maxRuntime;
-    applyRateSrc(); updateRuntimeVal();
+    applyRateSrc(); applyRuntimeUI();
   }
   resultEl.classList.remove("show");
   document.getElementById("history").innerHTML = "";
@@ -2035,7 +2587,8 @@ function renderGrid() {
 
 function loosenHint() {
   if (state.vibes.size && state.genres.size) return "try dropping either the vibe or the genre filter";
-  if (state.minRating > 3.0 && (state.vibes.size || state.genres.size)) return "try lowering the minimum rating";
+  if (state.minR > 0 && (state.vibes.size || state.genres.size)) return "try widening the rating range";
+  if (state.awards.size) return "award winners are rare — try dropping the award filter";
   if (state.maxRuntime < 360 && state.decades.size) return "try relaxing runtime or decade";
   if (srcMode === "all") return 'try switching back to "on any list"';
   return "loosen a filter or two";
@@ -2044,6 +2597,7 @@ function loosenHint() {
 // ---------------- refresh ----------------
 function refresh() {
   if (mode === "search") return; // search grid is driven by its own input
+  updateGenreModeUI();
   if (mode === "db") { refreshDb(); return; }
   const n = pool().length;
   const pc = document.getElementById("poolCount");
@@ -2054,6 +2608,7 @@ function refresh() {
   document.getElementById("pickBtn").disabled = n === 0;
   browseLimit = 24;
   renderGrid();
+  recountLists();
 }
 
 // ---------------- init ----------------
