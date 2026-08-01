@@ -335,6 +335,30 @@
     margin: 0 auto 14px; display: none;
   }
   .r-overview.show { display: block; }
+  #rCast { font-size: 13px; }
+  #rCast .ft { color: var(--pink-dim); }
+
+  /* runner-up candidates flanking the result */
+  .result-wrap { position: relative; max-width: 640px; margin: 0 auto; }
+  .altcard {
+    cursor: pointer; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; transition: border-color .12s, transform .15s; width: 118px;
+  }
+  .altcard:hover { border-color: var(--pink-dim); }
+  .altcard .tag { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted-2); padding: 6px 8px 4px; }
+  .altcard img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; background: var(--panel-2); }
+  .altcard .t { font-size: 11px; padding: 6px 8px 8px; color: var(--muted); line-height: 1.35; }
+  @media (min-width: 1001px) {
+    .altcard { position: absolute; top: 50%; transform: translateY(-50%); z-index: 0; }
+    .altcard:hover { transform: translateY(-50%) scale(1.05); }
+    .altcard.l { left: -142px; }
+    .altcard.r { right: -142px; }
+  }
+  @media (max-width: 1000px) {
+    .result-wrap { text-align: center; }
+    .altcard { display: inline-block; width: 104px; margin: 12px 6px 0; vertical-align: top; text-align: left; }
+  }
+  .altmsg { text-align: center; font-size: 11.5px; color: var(--muted-2); margin-top: 10px; }
   .r-where { margin-bottom: 16px; min-height: 0; }
   .r-where .wgroup { display: inline-flex; align-items: center; gap: 6px; margin: 4px 10px; }
   .r-where .wlabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted-2); }
@@ -427,7 +451,7 @@
       <div class="chips" id="catChips"></div>
     </div>
     <div class="frow" id="awardRow">
-      <div class="flabel">Awards <span class="hint">curated lists, silent-era to 2026 — in database mode they steer the roll &amp; dim the grid</span></div>
+      <div class="flabel">Awards <span class="hint">curated lists, silent-era to 2026 — in database mode the grid becomes the trophy shelf: winners only</span></div>
       <div class="chips" id="awardChips"></div>
     </div>
     <div class="frow">
@@ -498,11 +522,13 @@
         </g>
       </svg>
     </div>
+    <div class="result-wrap" id="resultWrap">
     <div class="result" id="result">
       <div class="r-vibe" id="rVibe"></div>
       <img class="r-poster" id="rPoster" alt="" style="display:none">
       <div class="r-title" id="rTitle"></div>
       <div class="r-sub" id="rSub"></div>
+      <div class="r-sub" id="rCast"></div>
       <div class="r-srcs" id="rSrcs"></div>
       <div class="r-overview" id="rOverview"></div>
       <div class="r-where" id="rWhere"></div>
@@ -522,6 +548,10 @@
         <a id="searchFallback" href="#" target="_blank" rel="noopener" style="color:var(--muted-2); text-decoration:underline; text-underline-offset:3px;">wrong film? search it instead</a>
       </div>
     </div>
+    <div class="altcard l" id="alt0" style="display:none"></div>
+    <div class="altcard r" id="alt1" style="display:none"></div>
+    <div class="altmsg" id="altMsg"></div>
+    </div>
     <div class="history" id="history"></div>
   </div>
 
@@ -533,7 +563,7 @@
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.10</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome)<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.11</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome) · every roll offers two spares — click one to promote it<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -1448,6 +1478,11 @@ function refreshDb() { clearTimeout(dbTimer); dbTimer = setTimeout(doRefreshDb, 
 async function doRefreshDb() {
   const seq = ++db.seq;
   const pc = document.getElementById("poolCount");
+  if (db.awards.size && !db.query.trim()) {
+    try { await awardBrowse(seq); } catch (e) { pc.innerHTML = '<span class="warn">shelf unreachable — check your connection</span>'; }
+    return;
+  }
+  document.getElementById("browseTitle").textContent = "Matching films";
   pc.innerHTML = "searching the database…";
   try {
     const d = await dbQuery(1);
@@ -1500,7 +1535,7 @@ function moviePcard(m) {
     + '<div class="pc-body"><div class="pc-title">' + esc(m.title) + "</div>"
     + '<div class="pc-sub"><span>' + (m.release_date ? m.release_date.slice(0, 4) : "—") + "</span>"
     + (m.vote_average ? '<span class="rt">★ ' + m.vote_average.toFixed(1) + "</span>" : "") + "</div></div>";
-  c.onclick = () => { resultEl.classList.add("show"); showDbPick(m); window.scrollTo({ top: resultEl.offsetTop - 80, behavior: "smooth" }); };
+  c.onclick = () => { clearAlts(); resultEl.classList.add("show"); showDbPick(m); window.scrollTo({ top: resultEl.offsetTop - 80, behavior: "smooth" }); };
   return c;
 }
 
@@ -1523,7 +1558,22 @@ function clearEnrichment() {
   const o = document.getElementById("rOverview"); o.classList.remove("show"); o.textContent = "";
   document.getElementById("rWhere").innerHTML = "";
   document.getElementById("rScores").innerHTML = "";
+  document.getElementById("rCast").innerHTML = "";
   lastWp = null;
+}
+// top-3 billed = protagonists (TMDB cast is billing-ordered); in Search & explore,
+// a film opened from someone's filmography also names them if they're outside the top billing
+function renderCast(credits) {
+  const el = document.getElementById("rCast");
+  const cast = credits && credits.cast ? credits.cast.slice().sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
+  if (!cast.length) { el.innerHTML = ""; return; }
+  const top = cast.slice(0, 3).map(c => c.name);
+  let html = "starring " + esc(top.join(", "));
+  if (mode === "search" && sx.person && !top.includes(sx.person.name)
+    && cast.some(c => c.name === sx.person.name)) {
+    html += ' · <span class="ft">featuring ' + esc(sx.person.name) + "</span>";
+  }
+  el.innerHTML = html;
 }
 
 // ---------------- OMDb: IMDb / Rotten Tomatoes / Metacritic + blended score ----------------
@@ -2067,6 +2117,83 @@ async function ensureListRatings() {
   if (mode === "lists") refresh();
 }
 
+// ---------------- runner-up candidates (main pick + 2 spares in the hat) ----------------
+let altPicks = [];        // up to 2 of {kind:"list", val:entry} | {kind:"db", val:tmdbMovie}
+let currentMain = null;   // same shape, set by showFilm/showDbPick
+
+function clearAlts() {
+  altPicks = [];
+  renderAltSlots();
+  document.getElementById("altMsg").textContent = "";
+}
+function setAlts(arr, totalN) {
+  altPicks = arr.slice(0, 2);
+  renderAltSlots();
+  document.getElementById("altMsg").textContent =
+    totalN <= 1 ? "that's the only film that fits your filters — no spares tonight"
+    : totalN === 2 ? "only two films fit your filters — just one spare in the hat"
+    : "";
+}
+function renderAltSlots() {
+  [0, 1].forEach(i => {
+    const el = document.getElementById("alt" + i);
+    const a = altPicks[i];
+    if (!a || !resultEl.classList.contains("show")) { el.style.display = "none"; el.onclick = null; return; }
+    el.style.display = "";
+    const isList = a.kind === "list";
+    const t = isList ? a.val.film.title : a.val.title;
+    const y = isList ? a.val.film.year : (a.val.release_date ? +a.val.release_date.slice(0, 4) : null);
+    el.innerHTML = '<div class="tag">also in the hat</div><img alt="" loading="lazy"><div class="t">' + esc(t)
+      + (y ? ' <span style="color:var(--muted-2)">(' + y + ")</span>" : "") + "</div>";
+    el.onclick = () => promoteAlt(i);
+    const img = el.querySelector("img");
+    if (!isList && a.val.poster_path) { img.src = TMDB_IMG + "w185" + a.val.poster_path; return; }
+    if (isList) {
+      const f = a.val.film;
+      const key = keyOf(f.title, f.year);
+      const apply = m => { if (m && m.poster_path && altPicks[i] === a) img.src = TMDB_IMG + "w185" + m.poster_path; };
+      const cached = searchCache.get(key);
+      if (cached !== undefined) apply(cached);
+      else tmdb("/search/movie", { query: f.title, year: f.year || "", include_adult: false })
+        .then(d => { const m = d.results && d.results[0] ? d.results[0] : null; searchCache.set(key, m); apply(m); })
+        .catch(() => {});
+    }
+  });
+}
+function promoteAlt(i) {
+  const alt = altPicks[i];
+  if (!alt) return;
+  ++pickSeq; // cancel any in-flight spin
+  const prev = currentMain;
+  altPicks[i] = prev || null;
+  if (!prev) altPicks.splice(i, 1);
+  titleEl.classList.remove("rolling");
+  resultEl.classList.add("show");
+  if (alt.kind === "list") showFilm(alt.val); else showDbPick(alt.val);
+  renderAltSlots();
+  window.scrollTo({ top: resultEl.offsetTop - 80, behavior: "smooth" });
+}
+function sampleOthers(arr, exclude, n) {
+  const rest = arr.filter(x => x !== exclude);
+  const out = [];
+  while (out.length < n && rest.length) out.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+  return out;
+}
+
+// resolve a curated award title to its TMDB movie (cached)
+async function resolveAwardTitle(c) {
+  const key = keyOf(c.t, c.y);
+  let hit = searchCache.get(key);
+  if (hit === undefined) {
+    try {
+      const d = await tmdb("/search/movie", { query: c.t, year: c.y, include_adult: false });
+      hit = d.results && d.results[0] ? d.results[0] : null;
+    } catch (e) { hit = null; }
+    searchCache.set(key, hit);
+  }
+  return hit;
+}
+
 // ---------------- grid dimming (DB mode with non-TMDB bars active) ----------------
 let dimSeq = 0;
 async function dimGrid(items) {
@@ -2165,8 +2292,9 @@ async function enrichListPick(f) {
     if (seq !== enrichSeq || !m) return;
     setPoster(m.poster_path);
     setOverview(m.overview);
-    const det = await tmdbDetails(m.id, "watch/providers");
+    const det = await tmdbDetails(m.id, "credits,watch/providers");
     if (seq !== enrichSeq) return;
+    renderCast(det.credits);
     renderProviders(det["watch/providers"]);
     const omdb = await fetchOmdb(det.imdb_id);
     if (seq !== enrichSeq) return;
@@ -2179,6 +2307,7 @@ async function enrichListPick(f) {
 
 async function showDbPick(m) {
   lastPickId = null;
+  currentMain = { kind: "db", val: m };
   currentDbMovie = m; currentDbDet = null;
   const btn = document.getElementById("addPickBtn");
   btn.style.display = "";
@@ -2215,6 +2344,7 @@ async function showDbPick(m) {
     document.getElementById("rCountry").textContent = det.production_countries && det.production_countries[0] ? det.production_countries[0].name : "—";
     const dir = det.credits && det.credits.crew ? det.credits.crew.filter(c => c.job === "Director").map(c => c.name).join(", ") : "";
     if (dir) document.getElementById("rSub").textContent = (m.release_date ? m.release_date.slice(0, 4) : "") + " · directed by " + dir;
+    renderCast(det.credits);
     renderProviders(det["watch/providers"]);
     const omdb = await fetchOmdb(det.imdb_id);
     if (seq !== enrichSeq) return;
@@ -2272,6 +2402,7 @@ async function dbPickRandom() {
       }
       m = best;
     }
+    const spares = sampleOthers(list, m, 2).map(x => ({ kind: "db", val: x }));
     let ticks = 0;
     const total = 12;
     const spin = () => {
@@ -2280,13 +2411,32 @@ async function dbPickRandom() {
       if (ticks < total) {
         titleEl.textContent = list[Math.floor(Math.random() * list.length)].title;
         setTimeout(spin, 35 + ticks * 14);
-      } else showDbPick(m);
+      } else {
+        showDbPick(m);
+        setAlts(spares, first.total_results);
+      }
     };
     spin();
   } catch (e) {
     titleEl.classList.remove("rolling");
     titleEl.textContent = "database unreachable — try again";
   }
+}
+
+// non-award DB filters that a resolved TMDB movie object can answer synchronously
+function awardGridPass(m) {
+  const gids = m.genre_ids || [];
+  if (db.genres.size) {
+    const ok = db.genreMode === "all" ? [...db.genres].every(g => gids.includes(g)) : gids.some(g => db.genres.has(g));
+    if (!ok) return false;
+  }
+  if (db.exGenres.size && gids.some(g => db.exGenres.has(g))) return false;
+  if (db.rateSrc === "tmdb") {
+    const v = m.vote_average || null;
+    if (db.minR > 0 && (!v || v < db.minR - 1e-9)) return false;
+    if (db.maxR < RATE_SRC.tmdb.max - 1e-9 && v && v > db.maxR + 1e-9) return false;
+  }
+  return true;
 }
 
 // Award roll: draw straight from the curated winners (a random discover roll
@@ -2300,21 +2450,17 @@ async function dbAwardRoll(ps) {
   }
   titleEl.textContent = "rolling the trophy shelf…";
   let m = null, fallback = null;
-  for (let t = 0; t < 6; t++) {
+  for (let t = 0; t < 7; t++) {
     const c = cands[Math.floor(Math.random() * cands.length)];
-    let hit = searchCache.get(keyOf(c.t, c.y));
-    if (hit === undefined) {
-      const d = await tmdb("/search/movie", { query: c.t, year: c.y, include_adult: false });
-      hit = d.results && d.results[0] ? d.results[0] : null;
-      searchCache.set(keyOf(c.t, c.y), hit);
-    }
+    const hit = await resolveAwardTitle(c);
     if (ps !== pickSeq) return;
     if (!hit) continue;
     fallback = fallback || hit;
+    if (!awardGridPass(hit) && t < 6) continue;
     if ((db.rateSrc !== "tmdb" && rateBarActive(db)) || db.cats.size) {
       const bag = await dbScoreFor(hit);
       if (ps !== pickSeq) return;
-      if (!passesDbBars(bag)) continue;
+      if (!passesDbBars(bag) && t < 6) continue;
     }
     m = hit;
     break;
@@ -2325,6 +2471,15 @@ async function dbAwardRoll(ps) {
     titleEl.textContent = "couldn't land an award pick — loosen a bar";
     return;
   }
+  // spares from the same shelf
+  const spareCands = sampleOthers(cands, null, 6).filter(c => norm(c.t) !== norm(m.title));
+  const spares = [];
+  for (const c of spareCands) {
+    if (spares.length >= 2) break;
+    const hit = await resolveAwardTitle(c);
+    if (ps !== pickSeq) return;
+    if (hit && hit.id !== m.id && awardGridPass(hit)) spares.push({ kind: "db", val: hit });
+  }
   let ticks = 0;
   const total = 10;
   const spin = () => {
@@ -2333,9 +2488,72 @@ async function dbAwardRoll(ps) {
     if (ticks < total) {
       titleEl.textContent = cands[Math.floor(Math.random() * cands.length)].t;
       setTimeout(spin, 40 + ticks * 14);
-    } else showDbPick(m);
+    } else {
+      showDbPick(m);
+      setAlts(spares, cands.length);
+    }
   };
   spin();
+}
+
+// ---------------- the trophy shelf: award mode replaces the discover grid ----------------
+let shelfState = null;
+async function awardBrowse(seq) {
+  const pc = document.getElementById("poolCount");
+  const cands = awardCandidates().sort((a, b) => b.y - a.y);
+  shelfState = { cands, cursor: 0, vanished: 0, shown: 0 };
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  document.getElementById("browseTitle").textContent = "The trophy shelf";
+  document.getElementById("browseCnt").textContent = "";
+  document.getElementById("pickBtn").disabled = !cands.length;
+  if (!cands.length) {
+    pc.innerHTML = "<b>0</b> award winners in those decades";
+    pc.classList.add("zero");
+    grid.innerHTML = '<div class="empty">Nothing on the shelf — <span class="fix">widen the decades or drop an award chip</span></div>';
+    return;
+  }
+  pc.classList.remove("zero");
+  pc.innerHTML = "setting up the trophy shelf…";
+  await awardBrowseChunk(seq);
+}
+async function awardBrowseChunk(seq) {
+  const st = shelfState;
+  const grid = document.getElementById("grid");
+  const oldMore = grid.querySelector(".showmore");
+  if (oldMore) oldMore.remove();
+  const chunk = st.cands.slice(st.cursor, st.cursor + 24);
+  st.cursor += chunk.length;
+  const hits = await Promise.all(chunk.map(resolveAwardTitle));
+  if (seq !== db.seq || mode !== "db" || !db.awards.size) return;
+  const fresh = [];
+  hits.forEach(m => {
+    if (!m || !awardGridPass(m)) { st.vanished++; return; } // doesn't fit → vanishes, no strangers on the shelf
+    st.shown++;
+    fresh.push(m);
+    grid.appendChild(moviePcard(m));
+  });
+  const pc = document.getElementById("poolCount");
+  const remaining = st.cands.length - st.cursor;
+  const est = st.shown + remaining; // unloaded winners counted until proven otherwise
+  pc.innerHTML = "<b>" + est + "</b> award winner" + (est === 1 ? "" : "s") + " on the shelf"
+    + (st.vanished ? ' <span class="warn">· ' + st.vanished + " hidden by your other filters</span>" : "")
+    + (((db.rateSrc !== "tmdb" && rateBarActive(db)) || db.cats.size) ? ' <span class="warn">· rating/category bars shown by dimming</span>' : "");
+  document.getElementById("browseCnt").textContent = st.shown + " loaded";
+  if (st.shown === 0 && remaining === 0) {
+    grid.innerHTML = '<div class="empty">Every winner on the shelf got filtered out — <span class="fix">loosen genres or the rating range</span></div>';
+  }
+  if (remaining > 0) {
+    const more = document.createElement("div");
+    more.className = "showmore";
+    const b = document.createElement("button");
+    b.className = "btn2";
+    b.textContent = "Show more of the shelf (" + remaining + " left)";
+    b.onclick = () => awardBrowseChunk(seq);
+    more.appendChild(b);
+    grid.appendChild(more);
+  }
+  dimGrid(fresh);
 }
 
 function setMode(m2) {
@@ -2362,6 +2580,7 @@ function setMode(m2) {
     applyRateSrc(); applyRuntimeUI();
   }
   resultEl.classList.remove("show");
+  clearAlts();
   document.getElementById("history").innerHTML = "";
   rebuildChips();
   if (mode === "search") renderSearchResults();
@@ -2498,6 +2717,7 @@ function pickRandom() {
   if (!src.length) return;
   const ps = ++pickSeq;
   const chosen = src[Math.floor(Math.random() * src.length)];
+  const spares = sampleOthers(src, chosen, 2).map(e => ({ kind: "list", val: e }));
   resultEl.classList.add("show");
   titleEl.classList.add("rolling");
   const all = pool();
@@ -2512,6 +2732,7 @@ function pickRandom() {
     } else {
       titleEl.classList.remove("rolling");
       showFilm(chosen);
+      setAlts(spares, all.length);
     }
   };
   spin();
@@ -2520,6 +2741,7 @@ function pickRandom() {
 function showFilm(entry) {
   const f = entry.film;
   lastPickId = f.id;
+  currentMain = { kind: "list", val: entry };
   currentDbMovie = null; currentDbDet = null;
   document.getElementById("addPickBtn").style.display = "none";
   clearEnrichment();
@@ -2570,7 +2792,7 @@ function renderGrid() {
       '<div class="c-sub">' + (f.director ? esc(f.director) + " · " + esc(f.country || "") : '<span class="c-nometa">imported — details pending</span>') + "</div>" +
       '<div class="c-foot"><span>' + (f.genres ? esc(f.genres.join(", ")) + " · " + fmtRuntime(f.runtime) : "&nbsp;") + "</span>" +
       (f.rating ? '<span class="rt">★ ' + f.rating.toFixed(2) + "</span>" : "") + "</div>";
-    c.onclick = () => { resultEl.classList.add("show"); showFilm(e); window.scrollTo({ top: document.getElementById("pickBtn").offsetTop - 80, behavior: "smooth" }); };
+    c.onclick = () => { clearAlts(); resultEl.classList.add("show"); showFilm(e); window.scrollTo({ top: document.getElementById("pickBtn").offsetTop - 80, behavior: "smooth" }); };
     grid.appendChild(c);
   });
   if (p.length > browseLimit) {
