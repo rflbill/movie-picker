@@ -450,6 +450,10 @@
       <div class="flabel">Score category <span class="hint" id="catHint">from the ratings — in database mode these apply to the roll &amp; dim the grid</span></div>
       <div class="chips" id="catChips"></div>
     </div>
+    <div class="frow" id="langRow">
+      <div class="flabel">Language <span class="hint" id="langHint"></span></div>
+      <select id="langSel" style="max-width:280px"></select>
+    </div>
     <div class="frow" id="awardRow">
       <div class="flabel">Awards <span class="hint">curated lists, silent-era to 2026 — in database mode the grid becomes the trophy shelf: winners only</span></div>
       <div class="chips" id="awardChips"></div>
@@ -563,7 +567,7 @@
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.11</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome) · every roll offers two spares — click one to promote it<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.12</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome) · every roll offers two spares — click one to promote it<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -892,7 +896,7 @@ function combinedFilms() {
 // ---------------- state ----------------
 const state = {
   vibes: new Set(), genres: new Set(), exGenres: new Set(), cats: new Set(), awards: new Set(), decades: new Set(),
-  genreMode: "any", minRT: 40, maxRuntime: 360, rateSrc: "lb", minR: 0, maxR: 4.6, search: "", hidden: new Set(),
+  genreMode: "any", lang: "", minRT: 40, maxRuntime: 360, rateSrc: "lb", minR: 0, maxR: 4.6, search: "", hidden: new Set(),
 };
 let lastPickId = null;
 let pickSeq = 0;
@@ -934,6 +938,11 @@ function pool(skipDim) {
       if (!state.cats.has(c.id)) return false;
     }
     if (state.awards.size && !awardPassAny(state.awards, f.title, f.year)) return false;
+    if (state.lang) {
+      const l = listLangOf(f);
+      if (!l) { hb(); return false; }
+      if (state.lang === "!en" ? l === "en" : l !== state.lang) return false;
+    }
     if (state.minRT > 40 || state.maxRuntime < 360) {
       if (!f.runtime) { hb(); return false; }
       if (f.runtime > state.maxRuntime || f.runtime < state.minRT) return false;
@@ -1359,11 +1368,11 @@ document.getElementById("search").oninput = e => {
 document.getElementById("clearBtn").onclick = () => {
   if (mode === "db") {
     db.vibe = null; db.genres.clear(); db.exGenres.clear(); db.cats.clear(); db.awards.clear(); db.decades.clear();
-    db.genreMode = "any"; db.rateSrc = "tmdb"; db.minR = 0; db.maxR = RATE_SRC.tmdb.max; db.minRT = 40; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
+    db.genreMode = "any"; db.lang = ""; db.rateSrc = "tmdb"; db.minR = 0; db.maxR = RATE_SRC.tmdb.max; db.minRT = 40; db.maxRuntime = 360; db.query = ""; db.streamOnly = false;
     document.getElementById("streamOnly").classList.remove("on");
   } else {
     state.vibes.clear(); state.genres.clear(); state.exGenres.clear(); state.cats.clear(); state.awards.clear(); state.decades.clear();
-    state.genreMode = "any"; state.minRT = 40; state.maxRuntime = 360; state.rateSrc = "lb"; state.minR = 0; state.maxR = RATE_SRC.lb.max; state.search = "";
+    state.genreMode = "any"; state.lang = ""; state.minRT = 40; state.maxRuntime = 360; state.rateSrc = "lb"; state.minR = 0; state.maxR = RATE_SRC.lb.max; state.search = "";
   }
   document.getElementById("search").value = "";
   applyRateSrc(); applyRuntimeUI();
@@ -1408,9 +1417,53 @@ let mode = "lists"; // "lists" | "db"
 
 const GENRES = [[28,"Action"],[12,"Adventure"],[16,"Animation"],[35,"Comedy"],[80,"Crime"],[99,"Documentary"],[18,"Drama"],[10751,"Family"],[14,"Fantasy"],[36,"History"],[27,"Horror"],[10402,"Music"],[9648,"Mystery"],[10749,"Romance"],[878,"Sci-Fi"],[53,"Thriller"],[10752,"War"],[37,"Western"]];
 const GENRE_NAME = new Map(GENRES);
+// ---------------- language / world cinema ----------------
+// "Foreign film" in the festival-circuit sense = not in English. Offered as a
+// blanket option plus the specific languages, which TMDB can filter natively.
+const LANGS = [
+  ["", "Any language"],
+  ["!en", "🌏 Not in English (world cinema)"],
+  ["en", "English"], ["pt", "Portuguese"], ["es", "Spanish"], ["fr", "French"],
+  ["it", "Italian"], ["de", "German"], ["ja", "Japanese"], ["ko", "Korean"],
+  ["zh", "Chinese"], ["hi", "Hindi"], ["ru", "Russian"], ["sv", "Swedish"],
+  ["da", "Danish"], ["no", "Norwegian"], ["fi", "Finnish"], ["is", "Icelandic"],
+  ["nl", "Dutch"], ["pl", "Polish"], ["cs", "Czech"], ["hu", "Hungarian"],
+  ["ro", "Romanian"], ["el", "Greek"], ["tr", "Turkish"], ["fa", "Persian"],
+  ["ar", "Arabic"], ["he", "Hebrew"], ["th", "Thai"], ["vi", "Vietnamese"],
+  ["tl", "Filipino"], ["id", "Indonesian"], ["uk", "Ukrainian"],
+];
+const LANG_NAME = new Map(LANGS);
+// In your own lists we only reliably know the production country, so language is
+// inferred from it until TMDB fills in the real one (on any pick you open).
+const COUNTRY_LANG = {
+  "USA": "en", "UK": "en", "United Kingdom": "en", "Canada": "en", "Australia": "en",
+  "New Zealand": "en", "Ireland": "en", "South Africa": "en", "Nigeria": "en",
+  "Brazil": "pt", "Portugal": "pt",
+  "France": "fr", "Belgium": "fr", "Senegal": "fr", "Burkina Faso": "fr",
+  "Spain": "es", "Mexico": "es", "Argentina": "es", "Chile": "es", "Colombia": "es",
+  "Peru": "es", "Uruguay": "es", "Cuba": "es", "Bolivia": "es", "Venezuela": "es",
+  "Italy": "it", "Germany": "de", "Austria": "de", "Switzerland": "de",
+  "Japan": "ja", "South Korea": "ko", "China": "zh", "Hong Kong": "zh", "Taiwan": "zh",
+  "India": "hi", "Sweden": "sv", "Denmark": "da", "Norway": "no", "Finland": "fi",
+  "Iceland": "is", "Netherlands": "nl", "Poland": "pl", "Czech Republic": "cs",
+  "Czechoslovakia": "cs", "Hungary": "hu", "Romania": "ro", "Greece": "el",
+  "Russia": "ru", "Soviet Union": "ru", "Ukraine": "uk", "Turkey": "tr",
+  "Iran": "fa", "Israel": "he", "Thailand": "th", "Vietnam": "vi",
+  "Philippines": "tl", "Indonesia": "id", "Morocco": "ar", "Egypt": "ar",
+  "Lebanon": "ar", "Tunisia": "ar", "Algeria": "ar",
+};
+function listLangOf(f) { return f.lang || COUNTRY_LANG[f.country] || null; }
+// a TMDB movie object carries original_language on every result — free and exact
+function langPass(m) {
+  if (!db.lang) return true;
+  const l = m.original_language || null;
+  if (db.lang === "!en") return l !== null && l !== "en";
+  return l === db.lang;
+}
+
 const COUNTRIES = [["BR","🇧🇷 Brazil"],["US","🇺🇸 United States"],["PT","🇵🇹 Portugal"],["AR","🇦🇷 Argentina"],["MX","🇲🇽 Mexico"],["CL","🇨🇱 Chile"],["CO","🇨🇴 Colombia"],["UY","🇺🇾 Uruguay"],["ES","🇪🇸 Spain"],["FR","🇫🇷 France"],["DE","🇩🇪 Germany"],["IT","🇮🇹 Italy"],["NL","🇳🇱 Netherlands"],["SE","🇸🇪 Sweden"],["GB","🇬🇧 United Kingdom"],["IE","🇮🇪 Ireland"],["PL","🇵🇱 Poland"],["JP","🇯🇵 Japan"],["KR","🇰🇷 South Korea"],["IN","🇮🇳 India"],["CA","🇨🇦 Canada"],["AU","🇦🇺 Australia"],["NZ","🇳🇿 New Zealand"],["TR","🇹🇷 Türkiye"],["ZA","🇿🇦 South Africa"]];
 
-const db = { vibe: null, genres: new Set(), exGenres: new Set(), cats: new Set(), awards: new Set(), decades: new Set(), genreMode: "any", rateSrc: "tmdb", minR: 0, maxR: 8.5, minRT: 40, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
+const db = { vibe: null, genres: new Set(), exGenres: new Set(), cats: new Set(), awards: new Set(), decades: new Set(), genreMode: "any", lang: "", rateSrc: "tmdb", minR: 0, maxR: 8.5, minRT: 40, maxRuntime: 360, query: "", streamOnly: false, country: "BR", total: 0, pages: 0, page1: [], seq: 0 };
 
 // Vibe → TMDB discover mapping. Approximate by design: a vibe becomes a genre
 // group (| = OR) that must match, minus excluded genres, plus optional keyword/runtime.
@@ -1464,6 +1517,7 @@ function discoverParams(forceDecade) {
     p["primary_release_date.gte"] = Math.min(...decs) + "-01-01";
     p["primary_release_date.lte"] = (Math.max(...decs) + 9) + "-12-31";
   }
+  if (db.lang && db.lang !== "!en") p.with_original_language = db.lang; // native → exact counts
   if (db.streamOnly) { p.watch_region = db.country; p.with_watch_monetization_types = "flatrate|free|ads"; }
   return p;
 }
@@ -1492,6 +1546,7 @@ async function doRefreshDb() {
     if (db.rateSrc !== "tmdb" && rateBarActive(db)) blind.push("rating range");
     if (db.cats.size) blind.push("categories");
     if (db.awards.size) blind.push("awards");
+    if (db.lang === "!en") blind.push("world-cinema filter");
     pc.innerHTML = "<b>" + db.total.toLocaleString() + "</b> film" + (db.total === 1 ? "" : "s")
       + (db.query.trim() ? " match your search" : " match your filters")
       + (db.streamOnly ? ' <span class="warn">· streaming in ' + esc(db.country) + "</span>" : "")
@@ -1510,6 +1565,8 @@ function renderDbGrid(items, append) {
   const grid = document.getElementById("grid");
   if (!append) { grid.innerHTML = ""; dbGridPage = 1; }
   else { const sm = grid.querySelector(".showmore"); if (sm) sm.remove(); }
+  // "not in English" has no native discover param — non-matching films vanish here
+  if (db.lang === "!en") items = items.filter(langPass);
   document.getElementById("browseCnt").textContent = db.total ? "most popular of " + db.total.toLocaleString() : "";
   if (!items.length && !append) {
     grid.innerHTML = '<div class="empty">Nothing matches — <span class="fix">' + dbLoosenHint() + "</span></div>";
@@ -1705,7 +1762,7 @@ function passesDbBars(s) {
 // ---------------- awards (curated static lists; updated through mid-2026) ----------------
 const AWARD_DEFS = [
   { id: "bp",    label: "🏆 Oscar Best Picture",  tip: "Won the Academy Award for Best Picture (1929–2026 ceremonies)." },
-  { id: "bd",    label: "🎬 Oscar Best Director", tip: "The film its director won the Best Director Oscar for." },
+  { id: "intl",  label: "🌏 Oscar Int'l Feature", tip: "Won Best International Feature Film — called Best Foreign Language Film until 2019 — plus the honorary foreign-film awards of the late 1940s/50s. The world-cinema circuit's headline prize." },
   { id: "palme", label: "🌴 Palme d'Or",          tip: "Won the top prize at Cannes (Palme d'Or era, 1955 onward)." },
 ];
 const AWARD_DATA = {
@@ -1808,106 +1865,85 @@ Everything Everywhere All at Once|2022
 Oppenheimer|2023
 Anora|2024
 One Battle After Another|2025`,
-bd: `Two Arabian Knights|1927
-7th Heaven|1927
-The Divine Lady|1928
-All Quiet on the Western Front|1930
-Skippy|1931
-Bad Girl|1931
-Cavalcade|1933
-It Happened One Night|1934
-The Informer|1935
-Mr. Deeds Goes to Town|1936
-The Awful Truth|1937
-You Can't Take It with You|1938
-Gone with the Wind|1939
-The Grapes of Wrath|1940
-How Green Was My Valley|1941
-Mrs. Miniver|1942
-Casablanca|1942
-Going My Way|1944
-The Lost Weekend|1945
-The Best Years of Our Lives|1946
-Gentleman's Agreement|1947
-The Treasure of the Sierra Madre|1948
-A Letter to Three Wives|1949
-All About Eve|1950
-A Place in the Sun|1951
-The Quiet Man|1952
-From Here to Eternity|1953
-On the Waterfront|1954
-Marty|1955
-Giant|1956
-The Bridge on the River Kwai|1957
-Gigi|1958
-Ben-Hur|1959
-The Apartment|1960
-West Side Story|1961
-Lawrence of Arabia|1962
-Tom Jones|1963
-My Fair Lady|1964
-The Sound of Music|1965
-A Man for All Seasons|1966
-The Graduate|1967
-Oliver!|1968
-Midnight Cowboy|1969
-Patton|1970
-The French Connection|1971
-Cabaret|1972
-The Sting|1973
-The Godfather Part II|1974
-One Flew Over the Cuckoo's Nest|1975
-Rocky|1976
-Annie Hall|1977
-The Deer Hunter|1978
-Kramer vs. Kramer|1979
-Ordinary People|1980
-Reds|1981
-Gandhi|1982
-Terms of Endearment|1983
-Amadeus|1984
-Out of Africa|1985
-Platoon|1986
-The Last Emperor|1987
-Rain Man|1988
-Born on the Fourth of July|1989
-Dances with Wolves|1990
-The Silence of the Lambs|1991
-Unforgiven|1992
-Schindler's List|1993
-Forrest Gump|1994
-Braveheart|1995
-The English Patient|1996
-Titanic|1997
-Saving Private Ryan|1998
-American Beauty|1999
-Traffic|2000
-A Beautiful Mind|2001
-The Pianist|2002
-The Lord of the Rings: The Return of the King|2003
-Million Dollar Baby|2004
-Brokeback Mountain|2005
-The Departed|2006
-No Country for Old Men|2007
-Slumdog Millionaire|2008
-The Hurt Locker|2008
-The King's Speech|2010
-The Artist|2011
-Life of Pi|2012
-Gravity|2013
-Birdman or (The Unexpected Virtue of Ignorance)|2014
-Birdman|2014
-The Revenant|2015
-La La Land|2016
-The Shape of Water|2017
+intl: `Shoeshine|1946
+Monsieur Vincent|1947
+Bicycle Thieves|1948
+The Bicycle Thief|1948
+The Walls of Malapaga|1949
+Rashomon|1950
+Forbidden Games|1952
+Gate of Hell|1953
+Samurai I: Musashi Miyamoto|1954
+La Strada|1954
+Nights of Cabiria|1957
+Mon Oncle|1958
+Black Orpheus|1959
+The Virgin Spring|1960
+Through a Glass Darkly|1961
+Sundays and Cybele|1962
+8½|1963
+Yesterday, Today and Tomorrow|1963
+The Shop on Main Street|1965
+A Man and a Woman|1966
+Closely Watched Trains|1966
+War and Peace|1966
+Z|1969
+Investigation of a Citizen Above Suspicion|1970
+The Garden of the Finzi-Continis|1970
+The Discreet Charm of the Bourgeoisie|1972
+Day for Night|1973
+Amarcord|1973
+Dersu Uzala|1975
+Black and White in Color|1976
+Madame Rosa|1977
+Get Out Your Handkerchiefs|1978
+The Tin Drum|1979
+Moscow Does Not Believe in Tears|1980
+Mephisto|1981
+To Begin Again|1982
+Fanny and Alexander|1982
+Dangerous Moves|1984
+The Official Story|1985
+The Assault|1986
+Babette's Feast|1987
+Pelle the Conqueror|1987
+Cinema Paradiso|1988
+Journey of Hope|1990
+Mediterraneo|1991
+Indochine|1992
+Belle Epoque|1992
+Burnt by the Sun|1994
+Antonia's Line|1995
+Kolya|1996
+Character|1997
+Life Is Beautiful|1997
+All About My Mother|1999
+Crouching Tiger, Hidden Dragon|2000
+No Man's Land|2001
+Nowhere in Africa|2001
+The Barbarian Invasions|2003
+The Sea Inside|2004
+Tsotsi|2005
+The Lives of Others|2006
+The Counterfeiters|2007
+Departures|2008
+The Secret in Their Eyes|2009
+In a Better World|2010
+A Separation|2011
+Amour|2012
+The Great Beauty|2013
+Ida|2013
+Son of Saul|2015
+The Salesman|2016
+A Fantastic Woman|2017
 Roma|2018
 Parasite|2019
-Nomadland|2020
-The Power of the Dog|2021
-Everything Everywhere All at Once|2022
-Oppenheimer|2023
-Anora|2024
-One Battle After Another|2025`,
+Another Round|2020
+Drive My Car|2021
+All Quiet on the Western Front|2022
+The Zone of Interest|2023
+I'm Still Here|2024
+Sentimental Value|2025`,
 palme: `Marty|1955
 The Silent World|1956
 Friendly Persuasion|1956
@@ -2290,6 +2326,7 @@ async function enrichListPick(f) {
       searchCache.set(key, m);
     }
     if (seq !== enrichSeq || !m) return;
+    if (m.original_language) f.lang = m.original_language; // upgrade the country guess to the real thing
     setPoster(m.poster_path);
     setOverview(m.overview);
     const det = await tmdbDetails(m.id, "credits,watch/providers");
@@ -2378,9 +2415,18 @@ async function dbPickRandom() {
     }
     const pages = Math.min(first.total_pages, 500);
     const candidate = async () => {
-      const pg = 1 + Math.floor(Math.random() * pages);
-      const d = pg === 1 ? first : (params ? await tmdb("/discover/movie", Object.assign({}, params, { page: pg })) : await dbQuery(pg));
-      const l = (d.results && d.results.length) ? d.results : first.results;
+      let l = [];
+      // "not in English" isn't a discover param: draw pages until one has world cinema on it
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const pg = 1 + Math.floor(Math.random() * pages);
+        const d = pg === 1 ? first : (params ? await tmdb("/discover/movie", Object.assign({}, params, { page: pg })) : await dbQuery(pg));
+        l = (d.results && d.results.length) ? d.results : first.results;
+        if (db.lang === "!en") {
+          const kept = l.filter(langPass);
+          if (kept.length) { l = kept; break; }
+          if (attempt === 3) l = l.filter(langPass).length ? l.filter(langPass) : l;
+        } else break;
+      }
       return { list: l, m: l[Math.floor(Math.random() * l.length)] };
     };
     let { list, m } = await candidate();
@@ -2425,6 +2471,7 @@ async function dbPickRandom() {
 
 // non-award DB filters that a resolved TMDB movie object can answer synchronously
 function awardGridPass(m) {
+  if (!langPass(m)) return false;
   const gids = m.genre_ids || [];
   if (db.genres.size) {
     const ok = db.genreMode === "all" ? [...db.genres].every(g => gids.includes(g)) : gids.some(g => db.genres.has(g));
@@ -2579,6 +2626,7 @@ function setMode(m2) {
     document.getElementById("search").value = mode === "db" ? db.query : state.search;
     applyRateSrc(); applyRuntimeUI();
   }
+  applyLangUI();
   resultEl.classList.remove("show");
   clearAlts();
   document.getElementById("history").innerHTML = "";
@@ -2679,6 +2727,7 @@ function addCurrentToPicks() {
   const m = currentDbMovie;
   if (!m) return;
   const f = getOrCreate(m.title, m.release_date ? +m.release_date.slice(0, 4) : null);
+  if (m.original_language) f.lang = m.original_language;
   if (!f.meta) {
     const det = currentDbDet && currentDbDet.id === m.id ? currentDbDet : null;
     f.genres = det && det.genres ? det.genres.map(g => g.name) : (m.genre_ids || []).map(genreFullName).filter(Boolean);
@@ -2837,6 +2886,27 @@ function refresh() {
 document.getElementById("modeLists").onclick = () => { if (mode !== "lists") setMode("lists"); };
 document.getElementById("modeDb").onclick = () => { if (mode !== "db") setMode("db"); };
 document.getElementById("modeSearch").onclick = () => { if (mode !== "search") setMode("search"); };
+
+const langSel = document.getElementById("langSel");
+LANGS.forEach(([v, label]) => {
+  const o = document.createElement("option");
+  o.value = v; o.textContent = label;
+  langSel.appendChild(o);
+});
+langSel.onchange = () => {
+  curFilt().lang = langSel.value;
+  applyLangUI();
+  refresh();
+};
+function applyLangUI() {
+  const flt = curFilt();
+  if (langSel.value !== flt.lang) langSel.value = flt.lang;
+  const h = document.getElementById("langHint");
+  if (!flt.lang) h.textContent = mode === "lists" ? "your lists: taken from the film's country until TMDB fills in the real one" : "";
+  else if (mode === "lists") h.textContent = "inferred from production country — opening a film corrects it with TMDB's actual language";
+  else if (flt.lang === "!en") h.textContent = "no native filter for this — non-English films are what remain in the grid, and the roll hunts for them";
+  else h.textContent = "filtered by TMDB directly — the count is exact";
+}
 
 const rateSel = document.getElementById("rateSrc");
 Object.entries(RATE_SRC).forEach(([k, cfg]) => {
