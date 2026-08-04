@@ -567,7 +567,7 @@
 
   <footer>
     Add any Letterboxd watchlist export (CSV) or paste a plain list — everything mixes into one pool.<br>
-    <span class="pk">v0.12</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome) · every roll offers two spares — click one to promote it<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
+    <span class="pk">v0.13</span> · chip numbers = matches given your other filters · genre chips: once = only these, twice = exclude · award lists hand-curated through mid-2026 (corrections welcome) · every roll offers two spares — click one to promote it<br> · list ratings are Letterboxd community averages · database mode ratings are TMDB scores · blended score averages Letterboxd/TMDB/IMDb/Metacritic (0–100; 🍅 shown separately — it's an approval meter, not a rating) · database vibes are approximate (mapped to genres &amp; keywords)<br>
     <div class="attrib">
       <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:var(--blue)"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg" alt="TMDB" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'TMDB'}))"></a>
       <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
@@ -1762,7 +1762,8 @@ function passesDbBars(s) {
 // ---------------- awards (curated static lists; updated through mid-2026) ----------------
 const AWARD_DEFS = [
   { id: "bp",    label: "🏆 Oscar Best Picture",  tip: "Won the Academy Award for Best Picture (1929–2026 ceremonies)." },
-  { id: "intl",  label: "🌏 Oscar Int'l Feature", tip: "Won Best International Feature Film — called Best Foreign Language Film until 2019 — plus the honorary foreign-film awards of the late 1940s/50s. The world-cinema circuit's headline prize." },
+  { id: "intl",  label: "🌏 Int'l Feature — won", tip: "Won Best International Feature Film — called Best Foreign Language Film until 2019 — plus the honorary foreign-film awards of the late 1940s/50s. The world-cinema circuit's headline prize." },
+  { id: "intln", label: "🎞️ Int'l Feature — nominated", tip: "Nominated for Best International Feature / Best Foreign Language Film (winners included) — every year's five, 1956 to 2025. Roughly 350 films: the whole modern world-cinema canon as the Academy saw it." },
   { id: "palme", label: "🌴 Palme d'Or",          tip: "Won the top prize at Cannes (Palme d'Or era, 1955 onward)." },
 ];
 const AWARD_DATA = {
@@ -1944,6 +1945,361 @@ All Quiet on the Western Front|2022
 The Zone of Interest|2023
 I'm Still Here|2024
 Sentimental Value|2025`,
+intln: `La Strada|1956
+The Captain of Köpenick|1956
+Gervaise|1956
+Harp of Burma|1956
+The Burmese Harp|1956
+Qivitoq|1956
+Nights of Cabiria|1957
+The Devil Strikes at Night|1957
+Gates of Paris|1957
+Mother India|1957
+Nine Lives|1957
+Mon Oncle|1958
+Arms and the Man|1958
+La Venganza|1958
+The Road a Year Long|1958
+The Usual Unidentified Thieves|1958
+Big Deal on Madonna Street|1958
+Black Orpheus|1959
+The Bridge|1959
+The Great War|1959
+Paw|1959
+The Village on the River|1959
+The Virgin Spring|1960
+Kapo|1960
+La Vérité|1960
+Macario|1960
+The Ninth Circle|1960
+Through a Glass Darkly|1961
+Harry and the Butler|1961
+Immortal Love|1961
+The Important Man|1961
+Plácido|1961
+Sundays and Cybele|1962
+Electra|1962
+The Four Days of Naples|1962
+Keeper of Promises|1962
+The Given Word|1962
+Tlayucan|1962
+8½|1963
+Knife in the Water|1963
+Los Tarantos|1963
+The Red Lanterns|1963
+Twin Sisters of Kyoto|1963
+Yesterday, Today and Tomorrow|1964
+Raven's End|1964
+Sallah Shabati|1964
+The Umbrellas of Cherbourg|1964
+Woman in the Dunes|1964
+The Shop on Main Street|1965
+Blood on the Land|1965
+Dear John|1965
+Kwaidan|1965
+Marriage Italian Style|1965
+A Man and a Woman|1966
+The Battle of Algiers|1966
+Loves of a Blonde|1966
+Pharaoh|1966
+Three|1966
+Closely Watched Trains|1967
+Bewitched Love|1967
+I Even Met Happy Gypsies|1967
+Live for Life|1967
+Portrait of Chieko|1967
+War and Peace|1968
+The Boys of Paul Street|1968
+The Firemen's Ball|1968
+The Girl with the Pistol|1968
+Stolen Kisses|1968
+Z|1969
+Adalen 31|1969
+Battle of Neretva|1969
+The Brothers Karamazov|1969
+My Night with Maud|1969
+Investigation of a Citizen Above Suspicion|1970
+First Love|1970
+Hoa-Binh|1970
+Peace in the Fields|1970
+Tristana|1970
+The Garden of the Finzi Continis|1971
+Dodes'ka-den|1971
+The Emigrants|1971
+The Policeman|1971
+Tchaikovsky|1971
+The Discreet Charm of the Bourgeoisie|1972
+The Dawns Here Are Quiet|1972
+I Love You Rosa|1972
+My Dearest Señorita|1972
+The New Land|1972
+Day for Night|1973
+The House on Chelouche Street|1973
+L'Invitation|1973
+The Pedestrian|1973
+Turkish Delight|1973
+Amarcord|1974
+Cats' Play|1974
+The Deluge|1974
+Lacombe, Lucien|1974
+The Truce|1974
+Dersu Uzala|1975
+Letters from Marusia|1975
+The Promised Land|1975
+Sandakan No. 8|1975
+Scent of a Woman|1975
+Black and White in Color|1976
+Cousin Cousine|1976
+Jacob the Liar|1976
+Nights and Days|1976
+Seven Beauties|1976
+Madame Rosa|1977
+Iphigenia|1977
+Operation Thunderbolt|1977
+A Special Day|1977
+That Obscure Object of Desire|1977
+Get Out Your Handkerchiefs|1978
+The Glass Cell|1978
+Hungarians|1978
+Viva Italia!|1978
+The New Monsters|1978
+White Bim Black Ear|1978
+The Tin Drum|1979
+The Maids of Wilko|1979
+Mama Turns 100|1979
+A Simple Story|1979
+To Forget Venice|1979
+Moscow Does Not Believe in Tears|1980
+Confidence|1980
+Kagemusha|1980
+The Last Metro|1980
+The Nest|1980
+Mephisto|1981
+The Boat Is Full|1981
+Man of Iron|1981
+Muddy River|1981
+Three Brothers|1981
+To Begin Again|1982
+Alsino and the Condor|1982
+Coup de Torchon|1982
+Clean Slate|1982
+Flight of the Eagle|1982
+Private Life|1982
+Fanny and Alexander|1983
+Carmen|1983
+Entre Nous|1983
+Job's Revolt|1983
+Le Bal|1983
+Dangerous Moves|1984
+Beyond the Walls|1984
+Camila|1984
+Double Feature|1984
+Wartime Romance|1984
+The Official Story|1985
+Angry Harvest|1985
+Colonel Redl|1985
+Three Men and a Cradle|1985
+When Father Was Away on Business|1985
+The Assault|1986
+Betty Blue|1986
+The Decline of the American Empire|1986
+My Sweet Little Village|1986
+Babette's Feast|1987
+Au Revoir Les Enfants|1987
+Goodbye, Children|1987
+Course Completed|1987
+The Family|1987
+Pathfinder|1987
+Pelle the Conqueror|1988
+Hanussen|1988
+The Music Teacher|1988
+Salaam Bombay!|1988
+Women on the Verge of a Nervous Breakdown|1988
+Cinema Paradiso|1989
+Camille Claudel|1989
+Jesus of Montreal|1989
+Waltzing Regitze|1989
+What Happened to Santiago|1989
+Journey of Hope|1990
+Cyrano de Bergerac|1990
+Ju Dou|1990
+The Nasty Girl|1990
+Open Doors|1990
+Mediterraneo|1991
+Children of Nature|1991
+The Elementary School|1991
+The Ox|1991
+Raise the Red Lantern|1991
+Indochine|1992
+Close to Eden|1992
+Daens|1992
+A Place in the World|1992
+Schtonk!|1992
+Belle Époque|1993
+Farewell My Concubine|1993
+Hedd Wyn|1993
+The Scent of Green Papaya|1993
+The Wedding Banquet|1993
+Burnt by the Sun|1994
+Before the Rain|1994
+Eat Drink Man Woman|1994
+Farinelli: Il Castrato|1994
+Strawberry and Chocolate|1994
+Antonia's Line|1995
+All Things Fair|1995
+Dust of Life|1995
+O Quatrilho|1995
+The Star Maker|1995
+Kolya|1996
+A Chef in Love|1996
+The Other Side of Sunday|1996
+Prisoner of the Mountains|1996
+Ridicule|1996
+Character|1997
+Beyond Silence|1997
+Four Days in September|1997
+Secrets of the Heart|1997
+The Thief|1997
+Life Is Beautiful|1998
+Central Station|1998
+Children of Heaven|1998
+The Grandfather|1998
+Tango|1998
+All About My Mother|1999
+East-West|1999
+Caravan|1999
+Solomon & Gaenor|1999
+Under the Sun|1999
+Crouching Tiger, Hidden Dragon|2000
+Amores perros|2000
+Divided We Fall|2000
+Everybody's Famous!|2000
+The Taste of Others|2000
+No Man's Land|2001
+Amélie|2001
+Elling|2001
+Lagaan|2001
+Son of the Bride|2001
+Nowhere in Africa|2002
+The Crime of Father Amaro|2002
+Hero|2002
+The Man Without a Past|2002
+Zus & Zo|2002
+The Barbarian Invasions|2003
+Evil|2003
+The Twilight Samurai|2003
+Twin Sisters|2003
+Želary|2003
+The Sea Inside|2004
+As It Is in Heaven|2004
+The Chorus|2004
+Downfall|2004
+Yesterday|2004
+Tsotsi|2005
+Don't Tell|2005
+Joyeux Noël|2005
+Paradise Now|2005
+Sophie Scholl – The Final Days|2005
+The Lives of Others|2006
+After the Wedding|2006
+Days of Glory|2006
+Pan's Labyrinth|2006
+Water|2006
+The Counterfeiters|2007
+Beaufort|2007
+Katyń|2007
+Mongol|2007
+12|2007
+Departures|2008
+The Baader Meinhof Complex|2008
+The Class|2008
+Revanche|2008
+Waltz with Bashir|2008
+The Secret in Their Eyes|2009
+Ajami|2009
+The Milk of Sorrow|2009
+A Prophet|2009
+The White Ribbon|2009
+In a Better World|2010
+Biutiful|2010
+Dogtooth|2010
+Incendies|2010
+Outside the Law|2010
+A Separation|2011
+Bullhead|2011
+Footnote|2011
+In Darkness|2011
+Monsieur Lazhar|2011
+Amour|2012
+Kon-Tiki|2012
+No|2012
+A Royal Affair|2012
+War Witch|2012
+The Great Beauty|2013
+The Broken Circle Breakdown|2013
+The Hunt|2013
+The Missing Picture|2013
+Omar|2013
+Ida|2014
+Leviathan|2014
+Tangerines|2014
+Timbuktu|2014
+Wild Tales|2014
+Son of Saul|2015
+Embrace of the Serpent|2015
+Mustang|2015
+Theeb|2015
+A War|2015
+The Salesman|2016
+Land of Mine|2016
+A Man Called Ove|2016
+Tanna|2016
+Toni Erdmann|2016
+A Fantastic Woman|2017
+The Insult|2017
+Loveless|2017
+On Body and Soul|2017
+The Square|2017
+Roma|2018
+Capernaum|2018
+Cold War|2018
+Never Look Away|2018
+Shoplifters|2018
+Parasite|2019
+Corpus Christi|2019
+Honeyland|2019
+Les Misérables|2019
+Pain and Glory|2019
+Another Round|2020
+Better Days|2020
+Collective|2020
+The Man Who Sold His Skin|2020
+Quo Vadis, Aida?|2020
+Drive My Car|2021
+Flee|2021
+The Hand of God|2021
+Lunana: A Yak in the Classroom|2021
+The Worst Person in the World|2021
+All Quiet on the Western Front|2022
+Argentina, 1985|2022
+Close|2022
+EO|2022
+The Quiet Girl|2022
+The Zone of Interest|2023
+Io Capitano|2023
+Perfect Days|2023
+Society of the Snow|2023
+The Teachers' Lounge|2023
+I'm Still Here|2024
+Emilia Pérez|2024
+Flow|2024
+The Girl with the Needle|2024
+The Seed of the Sacred Fig|2024
+Sentimental Value|2025
+It Was Just an Accident|2025
+The Secret Agent|2025
+Sirāt|2025
+The Voice of Hind Rajab|2025`,
 palme: `Marty|1955
 The Silent World|1956
 Friendly Persuasion|1956
@@ -2029,17 +2385,26 @@ Fjord|2026`,
 const AWARDS = {};
 AWARD_DEFS.forEach(a => {
   const m = new Map();
-  AWARD_DATA[a.id].split("\n").forEach(line => {
+  // nominee list includes every winner, so the two datasets merge (and a title that
+  // appears under two eligibility years keeps both — the Academy's year often differs
+  // from the release year databases use)
+  const src = a.id === "intln" ? AWARD_DATA.intln + "\n" + AWARD_DATA.intl : AWARD_DATA[a.id];
+  src.split("\n").forEach(line => {
     const i = line.lastIndexOf("|");
     if (i < 1) return;
-    const t = line.slice(0, i), y = +line.slice(i + 1);
-    m.set(norm(t), { y, t });
+    const t = line.slice(0, i).trim(), y = +line.slice(i + 1);
+    const k = norm(t);
+    if (!k) return;
+    const cur = m.get(k);
+    if (cur) { if (!cur.ys.includes(y)) cur.ys.push(y); }
+    else m.set(k, { t, ys: [y] });
   });
   AWARDS[a.id] = m;
 });
 function awardHas(id, title, year) {
   const hit = AWARDS[id].get(norm(title));
-  return hit !== undefined && (year == null || Math.abs(hit.y - year) <= 1);
+  if (!hit) return false;
+  return year == null || hit.ys.some(y => Math.abs(y - year) <= 1);
 }
 function awardPassAny(ids, title, year) {
   for (const id of ids) if (awardHas(id, title, year)) return true;
@@ -2048,10 +2413,11 @@ function awardPassAny(ids, title, year) {
 function awardCandidates() {
   const seen = new Set(), out = [];
   db.awards.forEach(id => {
-    AWARDS[id].forEach(v => {
-      if (db.decades.size && !db.decades.has(Math.floor(v.y / 10) * 10)) return;
-      const k = norm(v.t) + "|" + v.y;
-      if (!seen.has(k)) { seen.add(k); out.push(v); }
+    AWARDS[id].forEach((v, k) => {
+      if (db.decades.size && !v.ys.some(y => db.decades.has(Math.floor(y / 10) * 10))) return;
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push({ t: v.t, y: v.ys[0] });
     });
   });
   return out;
@@ -2222,8 +2588,15 @@ async function resolveAwardTitle(c) {
   let hit = searchCache.get(key);
   if (hit === undefined) {
     try {
-      const d = await tmdb("/search/movie", { query: c.t, year: c.y, include_adult: false });
+      let d = await tmdb("/search/movie", { query: c.t, year: c.y, include_adult: false });
       hit = d.results && d.results[0] ? d.results[0] : null;
+      if (!hit) { // eligibility year can trail the release year — retry without it
+        d = await tmdb("/search/movie", { query: c.t, include_adult: false });
+        hit = (d.results || []).find(x => {
+          const y = x.release_date ? +x.release_date.slice(0, 4) : null;
+          return y === null || Math.abs(y - c.y) <= 3;
+        }) || null;
+      }
     } catch (e) { hit = null; }
     searchCache.set(key, hit);
   }
